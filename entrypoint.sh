@@ -26,5 +26,5 @@ if [ -n "${GITHUB_REPO}" ]; then
     cd "${TARGET_DIR}"
 fi
 
-# Execute the CMD (e.g., start-notebook.sh) passed to the container.
+# Execute the CMD passed to the container.
 exec "$@"

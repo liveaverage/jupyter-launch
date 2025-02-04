@@ -1,4 +1,4 @@
-# Use the Jupyter base-notebook image which is designed for non-root usage.
+# Use the Jupyter base-notebook image, which is designed for non-root usage.
 FROM jupyter/base-notebook:latest
 
 # Switch to root to install additional packages and adjust permissions.
@@ -11,7 +11,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Make the entire home directory (and subdirectories) writable.
-# This ensures that any ephemeral directories, such as /home/jovyan/work, are accessible to an arbitrary UID.
+# This ensures that ephemeral directories (like /home/jovyan and /home/jovyan/work) are accessible to an arbitrary UID.
 RUN chmod -R 777 /home/jovyan
 
 # Copy the custom entrypoint script into the image.
@@ -19,14 +19,16 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh && \
     fix-permissions /usr/local/bin/entrypoint.sh
 
-# Remove explicit USER so that OpenShift can inject an arbitrary non-root UID.
+# Remove any explicit USER directive so that OpenShift can inject its arbitrary non-root UID.
 WORKDIR /home/jovyan
 
-# Optional: Predefine GITHUB_REPO as empty. Override at runtime.
+# Set a default for GITHUB_REPO. Do not override JUPYTER_TOKEN here;
+# if provided via OpenShift env variable, it will take precedence.
 ENV GITHUB_REPO=""
+ENV JUPYTER_TOKEN=""
 
-# Use our entrypoint script to run the repo clone/setup before starting JupyterLab.
+# Use our custom entrypoint script.
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
-# The default command launches the Jupyter Notebook server (with JupyterLab).
-CMD ["start-notebook.sh"]
+# Override the default command to force Jupyter to bind on all interfaces.
+CMD ["start-notebook.sh", "--NotebookApp.ip=0.0.0.0"]
