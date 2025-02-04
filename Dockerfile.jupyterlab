@@ -1,0 +1,27 @@
+# Use the Jupyter base-notebook image, which is designed for non-root usage.
+FROM jupyter/base-notebook:latest
+
+# Install Git as root during build time.
+USER root
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy the entrypoint script into the image.
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh && \
+    # Ensure the script (and the home directory) have permissive ownership
+    # so that an arbitrary UID can execute them.
+    fix-permissions /usr/local/bin/entrypoint.sh && \
+    fix-permissions /home/jovyan
+
+# Do not force a USER directive here; this allows OpenShift to run the container with
+# an arbitrary non-root UID as required.
+WORKDIR /home/jovyan
+
+# Use our custom entrypoint.
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+# Default command launches the notebook server (which includes JupyterLab).
+CMD ["start-notebook.sh"]
