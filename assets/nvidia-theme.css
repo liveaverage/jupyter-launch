@@ -1,0 +1,40 @@
+/* NVIDIA Dark Theme */
+@import url('~@jupyterlab/theme-dark-extension/style/theme.css');
+
+:root {
+  --jp-brand-color0: #76B900 !important;
+  --jp-brand-color1: #76B900 !important;
+  --jp-brand-color2: #5A8C00 !important;
+  --jp-brand-color3: #4E7A00 !important;
+}
+
+/* Hide default logo */
+.jp-LabLogo svg, #jp-MainLogo svg {
+  display: none !important;
+}
+
+/* Use NVIDIA logo */
+.jp-LabLogo {
+  background-image: url('/static/nvidia-logo.svg');
+  background-size: 50px auto;
+  background-repeat: no-repeat;
+  background-position: center;
+  width: 60px;
+  height: 40px;
+}
+
+/* Selected items */
+.jp-mod-selected {
+  background-color: rgba(118, 185, 0, 0.15) !important;
+}
+
+/* Active tabs */
+.lm-TabBar-tab.lm-mod-current {
+  border-top: 3px solid #76B900 !important;
+}
+
+/* Buttons */
+.jp-Button.jp-mod-accept {
+  background: #76B900 !important;
+}
+
