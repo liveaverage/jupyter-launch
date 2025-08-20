@@ -1,0 +1,10 @@
+# Ignore unnecessary files to speed up Docker context
+*.md
+.git
+.gitignore
+nvidia-theme/node_modules
+nvidia-theme/lib
+nvidia-theme/tsconfig.tsbuildinfo
+*.pyc
+__pycache__
+.DS_Store

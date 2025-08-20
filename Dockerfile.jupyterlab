@@ -16,31 +16,39 @@ RUN pip install --no-cache-dir \
 
 # Copy all assets
 COPY assets/ /opt/nvidia-assets/
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh /opt/nvidia-assets/*.sh
 
-# Build JupyterLab first
-RUN jupyter lab build
+# Skip jupyter lab build - base image already has it built!
+# We'll just modify the existing build
 
-# Create necessary directories
+# Create all directories
 RUN mkdir -p /opt/conda/share/jupyter/lab/static && \
     mkdir -p /home/jovyan/.jupyter/lab/user-settings/@jupyterlab/apputils-extension && \
     mkdir -p /opt/conda/share/jupyter/lab/settings && \
     mkdir -p /etc/jupyter
 
-# Copy configuration files
-RUN cp /opt/nvidia-assets/themes.jupyterlab-settings /home/jovyan/.jupyter/lab/user-settings/@jupyterlab/apputils-extension/themes.jupyterlab-settings && \
+# Copy all configuration files to their final locations
+RUN cp /opt/nvidia-assets/nvidia-logo.svg /opt/conda/share/jupyter/lab/static/nvidia-logo.svg && \
+    cp /opt/nvidia-assets/favicon.ico /opt/conda/share/jupyter/lab/static/favicon.ico && \
+    cp /opt/nvidia-assets/themes.jupyterlab-settings /home/jovyan/.jupyter/lab/user-settings/@jupyterlab/apputils-extension/themes.jupyterlab-settings && \
     cp /opt/nvidia-assets/notification.jupyterlab-settings /home/jovyan/.jupyter/lab/user-settings/@jupyterlab/apputils-extension/notification.jupyterlab-settings && \
     cp /opt/nvidia-assets/overrides.json /opt/conda/share/jupyter/lab/settings/overrides.json && \
     cp /opt/nvidia-assets/jupyter_server_config.py /etc/jupyter/jupyter_server_config.py
 
-# Apply branding immediately during build
-RUN /opt/nvidia-assets/apply-branding.sh
+# Apply branding to the existing build
+RUN chmod +x /opt/nvidia-assets/apply-branding.sh && \
+    /opt/nvidia-assets/apply-branding.sh && \
+    rm /opt/nvidia-assets/apply-branding.sh
 
-# Fix permissions
+# Copy the minimal entrypoint
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Fix all permissions once
 RUN fix-permissions /home/jovyan /opt/conda
 
-WORKDIR /home/jovyan
+# Set working directory to /home/jovyan/work for cleaner paths
+WORKDIR /home/jovyan/work
+
 USER ${NB_USER}
 
 ENV JUPYTER_ENABLE_LAB=yes
