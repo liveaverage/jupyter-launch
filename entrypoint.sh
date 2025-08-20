@@ -1,29 +1,48 @@
 #!/bin/bash
 set -e
 
+# Choose a writable work root (OpenShift-safe)
+WORK_ROOT="/home/jovyan/work"
+if [ ! -w "/home/jovyan" ] || [ ! -w "${WORK_ROOT}" ]; then
+    WORK_ROOT="/tmp/work"
+fi
+mkdir -p "${WORK_ROOT}" || true
+cd "${WORK_ROOT}"
+
 # Clone repo if specified
 if [ -n "${GITHUB_REPO}" ]; then
-    echo "Cloning repository: ${GITHUB_REPO}"
-    git clone "${GITHUB_REPO}" repo 2>/dev/null || echo "Repo already exists"
+    echo "Cloning repository: ${GITHUB_REPO} into ${WORK_ROOT}/repo"
+    if [ -d repo/.git ]; then
+        echo "Repo already exists"
+    else
+        if ! git clone "${GITHUB_REPO}" repo; then
+            echo "ERROR: failed to clone ${GITHUB_REPO} into ${WORK_ROOT}/repo" >&2
+        fi
+    fi
     if [ -f repo/setup.sh ]; then
-        cd repo && chmod +x setup.sh && ./setup.sh && cd ..
+        (cd repo && chmod +x setup.sh && ./setup.sh)
     fi
 fi
 
 # Build args
-ARGS="--ServerApp.ip=0.0.0.0"
+ARGS="--ServerApp.ip=0.0.0.0 --ServerApp.root_dir=${WORK_ROOT}"
 [ -z "${JUPYTER_TOKEN}" ] && ARGS="${ARGS} --IdentityProvider.token=''"
 
-# Auto-open notebook
-if [ -n "${AUTO_NOTEBOOK}" ] && [ -n "${GITHUB_REPO}" ]; then
-    # Check if notebook exists
-    if [ -f "repo/${AUTO_NOTEBOOK}" ]; then
-        echo "Opening notebook: repo/${AUTO_NOTEBOOK}"
-        # Use the correct format for default URL
-        ARGS="${ARGS} --ServerApp.default_url=/lab/tree/repo/${AUTO_NOTEBOOK}"
+# Auto-open notebook: pass the file path as a positional arg to 'jupyter lab'
+TARGET_NOTEBOOK_PATH=""
+if [ -n "${AUTO_NOTEBOOK}" ]; then
+    if [ -n "${GITHUB_REPO}" ]; then
+        CANDIDATE_PATH="repo/${AUTO_NOTEBOOK}"
     else
-        echo "Warning: Notebook ${AUTO_NOTEBOOK} not found in repo"
-        ls -la repo/ | head -10
+        CANDIDATE_PATH="${AUTO_NOTEBOOK}"
+    fi
+    if [ -f "${CANDIDATE_PATH}" ]; then
+        TARGET_NOTEBOOK_PATH="${CANDIDATE_PATH}"
+        echo "Requesting notebook open on launch: ${TARGET_NOTEBOOK_PATH}"
+        # Fallback default URL in case positional arg is ignored by a restored workspace
+        ARGS="${ARGS} --ServerApp.default_url=/lab/tree/${TARGET_NOTEBOOK_PATH}?reset"
+    else
+        echo "Warning: Notebook ${CANDIDATE_PATH} not found"
     fi
 fi
 
@@ -57,10 +76,21 @@ if [ ! -w "${HOME_DIR}" ]; then
     chmod 700 "${JUPYTER_CONFIG_DIR}" "${JUPYTER_DATA_DIR}" "${IPYTHONDIR}" 2>/dev/null || true
 fi
 
+export JUPYTERLAB_WORKSPACES_DIR="/tmp/jupyter/lab/workspaces"
+mkdir -p "${JUPYTERLAB_WORKSPACES_DIR}" || true
+chmod 700 "${JUPYTERLAB_WORKSPACES_DIR}" 2>/dev/null || true
+
 # Avoid permission denied scans of workspace node_modules by LSP
 ARGS="${ARGS} --LanguageServerManager.autodetect=False"
 
-rm -rf /home/jovyan/.jupyter/lab/workspaces || true
+# Ensure JupyterLab uses our fresh, writable workspaces directory
+ARGS="${ARGS} --LabServerApp.workspaces_dir=${JUPYTERLAB_WORKSPACES_DIR}"
+
+# Do not touch workspaces under /home/jovyan when it may be read-only
 
 # Start JupyterLab
-exec start-notebook.sh $ARGS
+if [ -n "${TARGET_NOTEBOOK_PATH}" ]; then
+    exec start-notebook.sh $ARGS "${TARGET_NOTEBOOK_PATH}"
+else
+    exec start-notebook.sh $ARGS
+fi
