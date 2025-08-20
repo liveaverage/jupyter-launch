@@ -30,14 +30,18 @@ RUN cp /opt/nvidia-assets/themes.jupyterlab-settings /home/jovyan/.jupyter/lab/u
     cp /opt/nvidia-assets/overrides.json /opt/conda/share/jupyter/lab/settings/overrides.json && \
     cp /opt/nvidia-assets/jupyter_server_config.py /etc/jupyter/jupyter_server_config.py
 
-# Find the actual JupyterLab static directory and inject branding
+# Find and modify JupyterLab files
 RUN LAB_STATIC_DIR=$(find /opt/conda -path "*/jupyter/lab/static" -type d | head -1) && \
     echo "Found static dir: $LAB_STATIC_DIR" && \
-    if [ -n "$LAB_STATIC_DIR" ] && [ -f "$LAB_STATIC_DIR/index.html" ]; then \
-        # Copy favicon to replace existing one \
-        cp /opt/nvidia-assets/favicon.ico "$LAB_STATIC_DIR/favicon.ico" && \
-        # Inject CSS with embedded logo directly into index.html \
-        sed -i 's|</head>|<style>:root{--jp-brand-color0:#76B900!important;--jp-brand-color1:#76B900!important;--jp-brand-color2:#5A8C00!important;}.jp-LabLogo svg{display:none!important;}.jp-LabLogo{background-image:url("data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48c3ZnIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIzNSAzMiAzNTIgMjU5Ij48cGF0aCBmaWxsPSIjNzZCOTAwIiBkPSJNODIsMTAyYzAsMCwyMy0zMyw2Ny0zN1Y1NGMtNTAsNC05Myw0Ni05Myw0NnMyNCw3MSw5Myw3N3YtMTNDOTksMTU4LDgyLDEwMiw4MiwxMDJ6TTE1MCwxMzl2MTJjLTM4LTctNDktNDYtNDktNDZzMTgtMjAsNDktMjN2MTNjLTE2LTItMjgsMTMtMjgsMTNTMTI4LDEzMSwxNTAsMTM5TTE1MCwzMlY1NGMxLDAsMywwLDQsMGM1Ny0yLDkzLDQ2LDkzLDQ2cy00Miw1MS04Niw1MWMtNCwwLTgsMC0xMS0xdjE0YzMsMCw2LDEsOSwxYzQxLDAsNzEtMjEsOTktNDZjNSw0LDI0LDEzLDI4LDE3Yy0yNywyMy05MSw0MS0xMjcsNDFjLTMsMC03LDAtMTAtMXYxOWgxNTZWMzJIMTUwek0xNTAsODFWNjZjMSwwLDMsMCw0LDBjNDEtMSw2NywzNSw2NywzNXMtMjksNDAtNjAsNDBjLTQsMC04LTEtMTItMlY5NGMxNiwyLDE5LDksMjksMjVsMjEtMThjMCwwLTE1LTIwLTQyLTIwQzE1NSw4MCwxNTIsODAsMTUwLDgxIi8+PC9zdmc+");background-size:contain;background-repeat:no-repeat;background-position:center;width:60px!important;height:40px!important;margin:0 8px;display:block!important;}.jp-mod-selected{background-color:rgba(118,185,0,0.15)!important;}.lm-TabBar-tab.lm-mod-current{border-top:3px solid #76B900!important;}.jp-Button.jp-mod-accept{background:#76B900!important;}</style></head>|' "$LAB_STATIC_DIR/index.html"; \
+    if [ -n "$LAB_STATIC_DIR" ]; then \
+        # Replace ALL favicon files \
+        find "$LAB_STATIC_DIR" -name "favicon*.ico" -exec cp /opt/nvidia-assets/favicon.ico {} \; && \
+        # Also replace in parent directories \
+        find /opt/conda/share/jupyter -name "favicon*.ico" -exec cp /opt/nvidia-assets/favicon.ico {} \; 2>/dev/null || true; \
+        # Inject comprehensive CSS that targets ALL logo instances \
+        if [ -f "$LAB_STATIC_DIR/index.html" ]; then \
+            sed -i 's|</head>|<style>:root{--jp-brand-color0:#76B900!important;--jp-brand-color1:#76B900!important;--jp-brand-color2:#5A8C00!important;}#jp-MainLogo svg,.jp-LabLogo svg,.lm-Widget svg[data-icon*="jupyter"],.jp-JupyterIcon svg{display:none!important;visibility:hidden!important;}#jp-MainLogo,.jp-LabLogo{background-image:url("data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48c3ZnIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIzNSAzMiAzNTIgMjU5Ij48cGF0aCBmaWxsPSIjNzZCOTAwIiBkPSJNODIsMTAyYzAsMCwyMy0zMyw2Ny0zN1Y1NGMtNTAsNC05Myw0Ni05Myw0NnMyNCw3MSw5Myw3N3YtMTNDOTksMTU4LDgyLDEwMiw4MiwxMDJ6TTE1MCwxMzl2MTJjLTM4LTctNDktNDYtNDktNDZzMTgtMjAsNDktMjN2MTNjLTE2LTItMjgsMTMtMjgsMTNTMTI4LDEzMSwxNTAsMTM5TTE1MCwzMlY1NGMxLDAsMywwLDQsMGM1Ny0yLDkzLDQ2LDkzLDQ2cy00Miw1MS04Niw1MWMtNCwwLTgsMC0xMS0xdjE0YzMsMCw2LDEsOSwxYzQxLDAsNzEtMjEsOTktNDZjNSw0LDI0LDEzLDI4LDE3Yy0yNywyMy05MSw0MS0xMjcsNDFjLTMsMC03LDAtMTAtMXYxOWgxNTZWMzJIMTUwek0xNTAsODFWNjZjMSwwLDMsMCw0LDBjNDEtMSw2NywzNSw2NywzNXMtMjksNDAtNjAsNDBjLTQsMC04LTEtMTItMlY5NGMxNiwyLDE5LDksMjksMjVsMjEtMThjMCwwLTE1LTIwLTQyLTIwQzE1NSw4MCwxNTIsODAsMTUwLDgxIi8+PC9zdmc+")!important;background-size:contain;background-repeat:no-repeat;background-position:center;width:60px!important;height:40px!important;display:block!important;}.jp-mod-selected{background-color:rgba(118,185,0,0.15)!important;}.lm-TabBar-tab.lm-mod-current{border-top:3px solid #76B900!important;}.jp-Button.jp-mod-accept{background:#76B900!important;}</style><link rel="icon" type="image/x-icon" href="favicon.ico"></head>|' "$LAB_STATIC_DIR/index.html"; \
+        fi; \
     fi
 
 # Fix permissions
