@@ -23,13 +23,13 @@ if [ -f "${STATIC_DIR}/index.html" ]; then
     fi
 fi
 
-# 3. Inject NVIDIA branding CSS directly (no temp file needed)
+# 3. Inject NVIDIA branding CSS with correct base URL
 echo "Injecting NVIDIA styles..."
 if [ -f "${STATIC_DIR}/index.html" ]; then
     # Remove any existing NVIDIA branding
     sed -i '/<style>.*NVIDIA Branding.*<\/style>/d' ${STATIC_DIR}/index.html
     
-    # Inject new styles directly using sed
+    # Inject new styles with proper URL handling
     sed -i 's|</head>|<style>\
 /* NVIDIA Branding */\
 :root {\
@@ -38,24 +38,40 @@ if [ -f "${STATIC_DIR}/index.html" ]; then
   --jp-brand-color2: #5A8C00 !important;\
   --jp-brand-color3: #4E7A00 !important;\
 }\
-.jp-LabLogo svg, #jp-MainLogo svg, .jp-JupyterLogo svg {\
+/* Hide ALL default logos */\
+.jp-LabLogo svg,\
+#jp-MainLogo svg,\
+.jp-JupyterLogo svg,\
+.jp-LabLogo img {\
   display: none !important;\
+  visibility: hidden !important;\
 }\
+/* Show NVIDIA logo using base URL */\
 .jp-LabLogo {\
-  background-image: url("/static/nvidia-logo.svg");\
-  background-size: 50px auto;\
+  background-image: url("static/nvidia-logo.svg");\
+  background-size: contain;\
   background-repeat: no-repeat;\
   background-position: center;\
-  width: 60px;\
-  height: 40px;\
+  width: 60px !important;\
+  height: 40px !important;\
   margin: 0 8px;\
+  display: block !important;\
 }\
-.jp-mod-selected, .jp-DirListing-item.jp-mod-selected {\
+/* Ensure logo container is visible */\
+#jp-top-panel .jp-LabLogo {\
+  visibility: visible !important;\
+  opacity: 1 !important;\
+}\
+/* Selected items */\
+.jp-mod-selected,\
+.jp-DirListing-item.jp-mod-selected {\
   background-color: rgba(118, 185, 0, 0.15) !important;\
 }\
+/* Active tabs */\
 .lm-TabBar-tab.lm-mod-current {\
   border-top: 3px solid #76B900 !important;\
 }\
+/* Buttons */\
 .jp-Button.jp-mod-accept {\
   background: #76B900 !important;\
 }\
