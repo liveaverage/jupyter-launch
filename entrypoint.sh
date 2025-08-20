@@ -12,7 +12,7 @@ fi
 
 # Build args
 ARGS="--ServerApp.ip=0.0.0.0"
-[ -z "${JUPYTER_TOKEN}" ] && ARGS="${ARGS} --ServerApp.token=''"
+[ -z "${JUPYTER_TOKEN}" ] && ARGS="${ARGS} --IdentityProvider.token=''"
 
 # Auto-open notebook
 if [ -n "${AUTO_NOTEBOOK}" ] && [ -n "${GITHUB_REPO}" ]; then
@@ -20,7 +20,7 @@ if [ -n "${AUTO_NOTEBOOK}" ] && [ -n "${GITHUB_REPO}" ]; then
     if [ -f "repo/${AUTO_NOTEBOOK}" ]; then
         echo "Opening notebook: repo/${AUTO_NOTEBOOK}"
         # Use the correct format for default URL
-        ARGS="${ARGS} --NotebookApp.default_url=/lab/tree/repo/${AUTO_NOTEBOOK}"
+        ARGS="${ARGS} --ServerApp.default_url=/lab/tree/repo/${AUTO_NOTEBOOK}"
     else
         echo "Warning: Notebook ${AUTO_NOTEBOOK} not found in repo"
         ls -la repo/ | head -10
@@ -47,8 +47,20 @@ mkdir -p "${JUPYTER_RUNTIME_DIR}" || {
 chmod 700 "${JUPYTER_RUNTIME_DIR}" 2>/dev/null || true
 export XDG_RUNTIME_DIR="${JUPYTER_RUNTIME_DIR}"
 
-# Pass runtime dir explicitly to Jupyter
-ARGS="${ARGS} --ServerApp.runtime_dir=${JUPYTER_RUNTIME_DIR}"
+# If HOME is not writable, redirect Jupyter config/data dirs to /tmp
+HOME_DIR=${HOME:-/home/jovyan}
+if [ ! -w "${HOME_DIR}" ]; then
+    export JUPYTER_CONFIG_DIR="/tmp/jupyter/config"
+    export JUPYTER_DATA_DIR="/tmp/jupyter/data"
+    export IPYTHONDIR="/tmp/ipython"
+    mkdir -p "${JUPYTER_CONFIG_DIR}" "${JUPYTER_DATA_DIR}" "${IPYTHONDIR}" || true
+    chmod 700 "${JUPYTER_CONFIG_DIR}" "${JUPYTER_DATA_DIR}" "${IPYTHONDIR}" 2>/dev/null || true
+fi
+
+# Avoid permission denied scans of workspace node_modules by LSP
+ARGS="${ARGS} --LanguageServerManager.autodetect=False"
+
+rm -rf /home/jovyan/.jupyter/lab/workspaces || true
 
 # Start JupyterLab
 exec start-notebook.sh $ARGS

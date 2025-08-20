@@ -44,7 +44,10 @@ RUN LAB_STATIC_DIR=$(find /opt/conda -path "*/jupyter/lab/static" -type d | head
         fi; \
     fi
 
-# Fix permissions
+    RUN mkdir -p /home/jovyan/.jupyter/lab/user-settings/@jupyterlab/application-extension && \
+    echo '{"documentTitle": "Pyrrhus Lab"}' > /home/jovyan/.jupyter/lab/user-settings/@jupyterlab/application-extension/page-config.jupyterlab-settings
+
+    # Fix permissions
 RUN fix-permissions /home/jovyan /opt/conda
 
 # Set working directory
@@ -53,6 +56,5 @@ WORKDIR /home/jovyan/work
 USER ${NB_USER}
 
 ENV JUPYTER_ENABLE_LAB=yes
-
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["start-notebook.sh"]
