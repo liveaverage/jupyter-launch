@@ -28,23 +28,43 @@ fi
 ARGS="--ServerApp.ip=0.0.0.0 --ServerApp.root_dir=${WORK_ROOT}"
 [ -z "${JUPYTER_TOKEN}" ] && ARGS="${ARGS} --IdentityProvider.token=''"
 
-# Auto-open notebook: pass the file path as a positional arg to 'jupyter lab'
+# Auto-open notebook and set default URL
 TARGET_NOTEBOOK_PATH=""
+DEFAULT_URL="/lab"
+
+# Determine base path for repo/notebooks
+BASE_PATH="${WORK_ROOT}"
+[ -n "${GITHUB_REPO}" ] && BASE_PATH="${WORK_ROOT}/repo"
+
 if [ -n "${AUTO_NOTEBOOK}" ]; then
-    if [ -n "${GITHUB_REPO}" ]; then
-        CANDIDATE_PATH="repo/${AUTO_NOTEBOOK}"
-    else
+    if [[ "${AUTO_NOTEBOOK}" = /* ]]; then
         CANDIDATE_PATH="${AUTO_NOTEBOOK}"
-    fi
-    if [ -f "${CANDIDATE_PATH}" ]; then
-        TARGET_NOTEBOOK_PATH="${CANDIDATE_PATH}"
-        echo "Requesting notebook open on launch: ${TARGET_NOTEBOOK_PATH}"
-        # Fallback default URL in case positional arg is ignored by a restored workspace
-        ARGS="${ARGS} --ServerApp.default_url=/lab/tree/${TARGET_NOTEBOOK_PATH}?reset"
     else
-        echo "Warning: Notebook ${CANDIDATE_PATH} not found"
+        CANDIDATE_PATH="${BASE_PATH}/${AUTO_NOTEBOOK}"
+    fi
+elif [ -n "${AUTO_NOTEBOOK_GLOB}" ]; then
+    # Find first match by filename under BASE_PATH
+    CANDIDATE_PATH=$(find "${BASE_PATH}" -type f -name "${AUTO_NOTEBOOK_GLOB}" 2>/dev/null | head -n 1 || true)
+fi
+
+if [ -n "${CANDIDATE_PATH}" ] && [ -f "${CANDIDATE_PATH}" ]; then
+    TARGET_NOTEBOOK_PATH="${CANDIDATE_PATH}"
+    # Compute path relative to WORK_ROOT for default_url
+    REL_PATH="${TARGET_NOTEBOOK_PATH#${WORK_ROOT}/}"
+    echo "Requesting notebook open on launch: ${REL_PATH}"
+    DEFAULT_URL="/lab/tree/${REL_PATH}?reset"
+else
+    # Fall back to opening the repo tree if present
+    if [ -d "${WORK_ROOT}/repo" ]; then
+        DEFAULT_URL="/lab/tree/repo"
+    fi
+    if [ -n "${CANDIDATE_PATH}" ] && [ ! -f "${CANDIDATE_PATH}" ]; then
+        echo "Warning: Notebook not found at ${CANDIDATE_PATH}"
     fi
 fi
+
+# Always pass a default URL for predictable startup
+ARGS="${ARGS} --LabServerApp.default_url=${DEFAULT_URL}"
 
 # Debug output
 echo "Starting JupyterLab with args: $ARGS"

@@ -1,2 +1,9 @@
-{"@jupyterlab/apputils-extension:themes": {"theme": "JupyterLab Dark"}}
+{
+  "@jupyterlab/apputils-extension:themes": { "theme": "JupyterLab Dark" },
+  "jupyterlab-tour:user-tours": {
+    "defaults": { "autoStart": true, "startTour": "nvidia-welcome" },
+    "tours": []
+  },
+  "jupyterlab-tour:default-tours": { "enabled": false }
+}
 
