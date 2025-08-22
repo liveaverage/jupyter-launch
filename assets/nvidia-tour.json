@@ -48,11 +48,7 @@
       ],
       "options": {
         "hideBackButton": false,
-        "showStepNumbers": true,
-        "showBullets": false,
-        "showProgress": true,
-        "scrollToElement": true,
-        "disableInteraction": false
+        "showProgress": true
       }
     },
     {
@@ -93,7 +89,6 @@
       ],
       "options": {
         "hideBackButton": false,
-        "showStepNumbers": true,
         "showProgress": true
       }
     }

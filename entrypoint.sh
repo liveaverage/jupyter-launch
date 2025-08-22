@@ -96,6 +96,10 @@ if [ ! -w "${HOME_DIR}" ]; then
     chmod 700 "${JUPYTER_CONFIG_DIR}" "${JUPYTER_DATA_DIR}" "${IPYTHONDIR}" 2>/dev/null || true
 fi
 
+# Ensure .jupyter directory is writable at runtime
+mkdir -p "${HOME_DIR}/.jupyter" || true
+chmod -R 777 "${HOME_DIR}/.jupyter" 2>/dev/null || true
+
 export JUPYTERLAB_WORKSPACES_DIR="/tmp/jupyter/lab/workspaces"
 mkdir -p "${JUPYTERLAB_WORKSPACES_DIR}" || true
 chmod 700 "${JUPYTERLAB_WORKSPACES_DIR}" 2>/dev/null || true

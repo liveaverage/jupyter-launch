@@ -5,9 +5,10 @@ c.ServerApp.extra_static_paths = ["/opt/nvidia-assets", "/opt/conda/share/jupyte
 c.LabServerApp.page_config_data = {
     "appName": "NVIDIA Labs",
     "faviconUrl": "static/favicon.ico",
-    "disabledExtensions": [
-        "jupyterlab-tour:default-tours"
-    ]
+    # Disable default JupyterLab Tour bundles so only our custom tours run
+    "disabledExtensions": {
+        "jupyterlab-tour:notebook-tours": True
+    }
 }
 
 # Disable language server autodetect to avoid scanning unwritable workspace
