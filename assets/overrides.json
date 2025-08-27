@@ -1,48 +1,6 @@
 {
   "@jupyterlab/apputils-extension:themes": {
     "theme": "JupyterLab Dark"
-  },
-  "jupyterlab-tour:user-tours": {
-    "autoStart": true,
-    "startTour": "nvidia-welcome",
-    "tours": [
-      {
-        "id": "nvidia-welcome",
-        "label": "Welcome to NVIDIA JupyterLab",
-        "hasHelpEntry": true,
-        "steps": [
-          { "target": "#jp-MainLogo", "content": "Welcome to NVIDIA JupyterLab! This customized environment includes GPU monitoring, auto-loaded notebooks, and NVIDIA branding.", "placement": "bottom" },
-          { "target": "#jp-main-dock-panel", "content": "Your notebooks from the cloned repository appear here. You can open them by double-clicking.", "placement": "center" },
-          { "target": "#jp-left-stack", "content": "The file browser shows all available notebooks and files. Navigate through your repository structure here.", "placement": "right" },
-          { "target": "#jp-MainMenu li:nth-child(3)", "content": "Access GPU Dashboards from the View menu. Note: GPU metrics only appear when NVIDIA GPUs are available (use --gpus all with Docker).", "placement": "bottom" },
-          { "target": ".jp-SideBar .lm-TabBar-tab[data-id='jp-running-sessions']", "content": "Monitor your running kernels and terminals here. GPU memory usage is tracked for each kernel when GPUs are available.", "placement": "right" },
-          { "target": "#jp-top-panel", "content": "The status bar shows kernel status and GPU utilization when available.", "placement": "bottom" },
-          { "target": "#jp-MainMenu li:nth-child(1)", "content": "Create new notebooks, Python files, or terminals from the File menu.", "placement": "bottom" },
-          { "target": "#jp-MainMenu li:nth-child(8)", "content": "Find additional resources and documentation in the Help menu. You can restart this tour anytime from Help > Welcome Tour.", "placement": "bottom" }
-        ],
-        "options": {
-          "hideBackButton": false,
-          "showProgress": true
-        }
-      },
-      {
-        "id": "nvidia-gpu-features",
-        "label": "GPU Features Tour",
-        "hasHelpEntry": true,
-        "steps": [
-          { "target": "#jp-MainMenu li:nth-child(3)", "content": "Click View menu to access GPU Dashboards", "placement": "bottom" },
-          { "target": "#filebrowser", "content": "This is the file browser. Use it to load or switch between notebooks and navigate your repo.", "placement": "right" },
-          { "target": ".lm-TabBar-tab[data-id='gpu-dashboard']", "content": "Open GPU Dashboards here to review live GPU metrics (utilization, memory, PCIe, NVLink).", "placement": "bottom" },
-          { "target": "#jp-main-dock-panel", "content": "GPU Dashboards will open as new tabs showing: GPU Utilization, GPU Memory, PCIe Throughput, and NVLink status.", "placement": "center" },
-          { "target": ".jp-Notebook", "content": "In notebooks, you can use nvidia-ml-py to programmatically access GPU metrics:\n\nimport pynvml\npynvml.nvmlInit()\nhandle = pynvml.nvmlDeviceGetHandleByIndex(0)\ninfo = pynvml.nvmlDeviceGetMemoryInfo(handle)", "placement": "center" },
-          { "target": "#jp-MainMenu li:nth-child(5)", "content": "Restart kernels from here if GPU memory needs to be freed.", "placement": "bottom" }
-        ],
-        "options": { "hideBackButton": false, "showProgress": true }
-      }
-    ]
-  },
-  "jupyterlab-tour:default-tours": {
-    "tours": []
   }
 }
 

@@ -1,0 +1,63 @@
+{
+  "autoStart": true,
+  "startTour": "nvidia-welcome",
+  "force": false,
+  "activate": true,
+  "tours": [
+    {
+      "id": "nvidia-welcome",
+      "icon": "defaultTourIcon",
+      "label": "Welcome to NVIDIA JupyterLab",
+      "hasHelpEntry": true,
+      "steps": [
+
+        {
+          "title": "Welcome to NVIDIA-powered JupyterLab",
+          "content": "This customized environment includes GPU monitoring, auto-loaded notebooks, and NVIDIA branding.",
+          "target": "#jp-MainLogo",
+          "placement": "center",
+          "title": "Welcome to NVIDIA JupyterLab!"
+        },
+        {
+          "target": "#jp-main-dock-panel",
+          "content": "Your auto-started notebooks from the cloned repository appear here.",
+          "placement": "center"
+        },
+        {
+          "target": "#jp-left-stack",
+          "content": "The file browser on the left shows all available files and notebooks from your repository.  You can open them by double-clicking.",
+          "placement": "right"
+        },
+        {
+          "target": "#tab-key-1-2",
+          "content": "Monitor your running kernels and terminals here. GPU memory usage is tracked for each kernel when GPUs are available.",
+          "placement": "right"
+        },
+        {
+          "target": "#tab-key-1-3",
+          "content": "GPU Dashboards will open as new tabs showing: GPU Utilization, GPU Memory, PCIe Throughput, and NVLink status.",
+          "placement": "right"
+        },
+        {
+          "target": "#jp-MainMenu > ul > li:nth-child(3)",
+          "content": "Access GPU Dashboards from the View menu. Note: GPU metrics only appear when NVIDIA GPUs are available (use --gpus all with Docker).",
+          "placement": "bottom"
+        },
+        {
+          "target": "#jp-MainMenu > ul > li:nth-child(5)",
+          "content": "You can manage your kernel (e.g., restart it to free up GPU memory) from the Kernel menu.",
+          "placement": "bottom"
+        },
+        {
+          "target": "#jp-MainMenu > ul > li:nth-child(8)",
+          "content": "You can restart this tour anytime from Help > Tours > Welcome to NVIDIA JupyterLab.",
+          "placement": "bottom"
+        }
+      ],
+      "options": {
+        "hideBackButton": false,
+        "showProgress": true,
+      }
+    }
+  ]
+}

@@ -7,7 +7,8 @@ c.LabServerApp.page_config_data = {
     "faviconUrl": "static/favicon.ico",
     # Disable default JupyterLab Tour bundles so only our custom tours run
     "disabledExtensions": {
-        "jupyterlab-tour:notebook-tours": True
+        "jupyterlab-tour:notebook-tours": True,
+        "jupyterlab-tour:default-tours": True
     }
 }
 

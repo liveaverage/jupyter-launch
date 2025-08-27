@@ -1,5 +1,6 @@
 {
   "disabledExtensions": {
-    "jupyterlab-tour:notebook-tours": true
+    "jupyterlab-tour:notebook-tours": true,
+    "jupyterlab-tour:default-tours": true
   }
 }
