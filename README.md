@@ -9,7 +9,7 @@
 - Interactive guided tours
 - Remote kernel gateway support
 - Disabled update/news notifications
-- **Multi-CUDA support**: Pre-built images for CUDA 11.8, 12.1, and 12.4
+- **Multi-CUDA support**: Pre-built images for CUDA 11.8 and 12.1
 
 Environment variables:
 
@@ -50,22 +50,20 @@ Remote kernel usage from a lightweight client:
 
 This project supports multiple CUDA versions via separate base images:
 
-- **CUDA 11.8**: For older GPUs and legacy compatibility
-- **CUDA 12.1**: Balanced support for recent GPUs  
-- **CUDA 12.4**: Latest features for newest GPUs (H100, L4, etc.)
+- **CUDA 11.8**: For older GPUs and legacy compatibility (V100, T4, RTX 20xx/30xx)
+- **CUDA 12.1**: Latest stable for modern GPUs (A100, H100, L4, RTX 40xx)
 
 ### Pre-built Images (GitHub Container Registry)
 
 Pull pre-built images from GHCR:
 
 ```bash
-# Latest CUDA 12.4
+# Latest CUDA 12.1
 docker pull ghcr.io/[your-org]/pyrrhus-jupyter:latest
 
 # Specific CUDA versions
 docker pull ghcr.io/[your-org]/pyrrhus-jupyter:cuda-11.8
 docker pull ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
-docker pull ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.4
 ```
 
 ### Building Locally
@@ -137,5 +135,5 @@ Images are tagged with:
 - `cuda-{version}` - Specific CUDA version
 - `cuda-{version}-latest` - Latest build of that CUDA version
 - `cuda-{version}-{git-sha}` - Specific commit
-- `latest` - Latest CUDA version (12.4)
+- `latest` - Latest CUDA version (12.1)
 

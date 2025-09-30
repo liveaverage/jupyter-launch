@@ -1,5 +1,5 @@
 # Purpose: CUDA-enabled JupyterLab with NVIDIA branding and GPU monitoring
-# Inputs: ARG CUDA_VERSION for base image selection (11.8, 12.1, 12.4)
+# Inputs: ARG CUDA_VERSION for base image selection (11.8, 12.1)
 # Outputs: Multi-CUDA variant container images
 # Assumptions: NVIDIA Docker runtime available on host
 # Notes: Builds on nvidia/cuda base with miniconda for Jupyter stack
@@ -8,7 +8,7 @@ ARG CUDA_VERSION=12.1
 ARG UBUNTU_VERSION=22.04
 
 # Stage 1: Select CUDA base image
-FROM nvidia/cuda:${CUDA_VERSION}.0-cudnn8-runtime-ubuntu${UBUNTU_VERSION} as base
+FROM nvidia/cuda:${CUDA_VERSION}.0-runtime-ubuntu${UBUNTU_VERSION} AS base
 
 USER root
 

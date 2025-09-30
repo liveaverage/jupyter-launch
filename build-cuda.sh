@@ -8,7 +8,7 @@
 set -e
 
 # Default CUDA versions to build
-CUDA_VERSIONS=("11.8" "12.1" "12.4")
+CUDA_VERSIONS=("11.8" "12.1")
 IMAGE_NAME="${IMAGE_NAME:-pyrrhus-jupyter}"
 REGISTRY="${REGISTRY:-ghcr.io}"
 REPO="${REPO:-$(git config --get remote.origin.url | sed -e 's/.*://g' -e 's/.git$//g' | tr '[:upper:]' '[:lower:]')}"
@@ -49,13 +49,8 @@ fi
 
 # Build each CUDA version
 for CUDA_VERSION in "${CUDA_VERSIONS[@]}"; do
-    # Determine Ubuntu version based on CUDA version
-    # CUDA 11.8 typically uses Ubuntu 20.04, CUDA 12.x uses 22.04
-    if [[ "${CUDA_VERSION}" == 11.* ]]; then
-        UBUNTU_VERSION="20.04"
-    else
-        UBUNTU_VERSION="22.04"
-    fi
+    # Both CUDA 11.8 and 12.1 use Ubuntu 22.04 for runtime images
+    UBUNTU_VERSION="22.04"
     
     IMAGE_TAG="${IMAGE_NAME}:cuda-${CUDA_VERSION}"
     FULL_TAG="${REGISTRY}/${REPO}/${IMAGE_TAG}"
