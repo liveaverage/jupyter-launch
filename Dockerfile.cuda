@@ -1,0 +1,144 @@
+/// Purpose: CUDA-enabled JupyterLab with NVIDIA branding and GPU monitoring
+/// Inputs: ARG CUDA_VERSION for base image selection (11.8, 12.1, 12.4)
+/// Outputs: Multi-CUDA variant container images
+/// Assumptions: NVIDIA Docker runtime available on host
+/// Notes: Builds on nvidia/cuda base with miniconda for Jupyter stack
+
+ARG CUDA_VERSION=12.1
+ARG UBUNTU_VERSION=22.04
+
+# Stage 1: Select CUDA base image
+FROM nvidia/cuda:${CUDA_VERSION}.0-cudnn8-runtime-ubuntu${UBUNTU_VERSION} as base
+
+USER root
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git \
+        wget \
+        ca-certificates \
+        curl \
+        bzip2 \
+        libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libxrender-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Miniconda
+ENV CONDA_DIR=/opt/conda \
+    PATH=/opt/conda/bin:$PATH
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh && \
+    /bin/bash /tmp/miniconda.sh -b -p ${CONDA_DIR} && \
+    rm /tmp/miniconda.sh && \
+    conda clean -tipsy
+
+# Create jovyan user (standard Jupyter user)
+ARG NB_USER=jovyan
+ARG NB_UID=1000
+ARG NB_GID=100
+ENV NB_USER=${NB_USER} \
+    NB_UID=${NB_UID} \
+    NB_GID=${NB_GID} \
+    HOME=/home/${NB_USER}
+
+RUN groupadd --gid ${NB_GID} ${NB_USER} && \
+    useradd --uid ${NB_UID} --gid ${NB_GID} --create-home --shell /bin/bash ${NB_USER} && \
+    mkdir -p ${HOME}/work && \
+    chown -R ${NB_USER}:${NB_GID} ${HOME}
+
+# Install JupyterLab and extensions
+RUN conda install -y -c conda-forge \
+    jupyterlab=4.0.9 \
+    notebook=7.0.6 \
+    ipykernel=6.27.1 \
+    ipywidgets=8.1.1 && \
+    conda clean -tipsy
+
+# Install NVIDIA monitoring and Jupyter extensions
+RUN pip install --no-cache-dir \
+    jupyterlab-nvdashboard \
+    nvidia-ml-py3 \
+    jupyterlab-tour \
+    jupyter_kernel_gateway && \
+    fix-permissions() { \
+        chmod -R g+rwX,o+rX "$@"; \
+        find "$@" -type d -exec chmod g+s {} \;; \
+    } && \
+    fix-permissions ${CONDA_DIR} ${HOME}
+
+# Copy all assets
+COPY assets/ /opt/nvidia-assets/
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Create directories
+RUN mkdir -p ${HOME}/.jupyter/lab/user-settings/@jupyterlab/apputils-extension && \
+    mkdir -p ${CONDA_DIR}/share/jupyter/lab/settings && \
+    mkdir -p /etc/jupyter
+
+# Copy configuration files
+RUN cp /opt/nvidia-assets/themes.jupyterlab-settings ${HOME}/.jupyter/lab/user-settings/@jupyterlab/apputils-extension/themes.jupyterlab-settings && \
+    cp /opt/nvidia-assets/notification.jupyterlab-settings ${HOME}/.jupyter/lab/user-settings/@jupyterlab/apputils-extension/notification.jupyterlab-settings && \
+    cp /opt/nvidia-assets/overrides.json ${CONDA_DIR}/share/jupyter/lab/settings/overrides.json && \
+    cp /opt/nvidia-assets/jupyter_server_config.py /etc/jupyter/jupyter_server_config.py
+
+# Apply NVIDIA branding using a dedicated script
+COPY assets/apply-branding.sh /opt/nvidia-assets/apply-branding.sh
+RUN chmod +x /opt/nvidia-assets/apply-branding.sh && \
+    /opt/nvidia-assets/apply-branding.sh
+
+# Configure JupyterLab Tour settings and application title
+RUN mkdir -p ${HOME}/.jupyter/lab/user-settings/jupyterlab-tour && \
+    cp /opt/nvidia-assets/user-tours.jupyterlab-settings ${HOME}/.jupyter/lab/user-settings/jupyterlab-tour/user-tours.jupyterlab-settings && \
+    mkdir -p ${HOME}/.jupyter/lab/user-settings/@jupyterlab/application-extension && \
+    echo '{"documentTitle": "Pyrrhus Lab"}' > ${HOME}/.jupyter/lab/user-settings/@jupyterlab/application-extension/page-config.jupyterlab-settings
+
+# Disable default tour extensions (but keep user-tours enabled for our custom tours)
+RUN jupyter labextension disable "jupyterlab-tour:notebook-tours" && \
+    jupyter labextension disable "jupyterlab-tour:default-tours" && \
+    mkdir -p /etc/jupyter/labconfig && \
+    cp /opt/nvidia-assets/page_config.json /etc/jupyter/labconfig/page_config.json
+
+# Fix permissions for OpenShift compatibility
+RUN fix-permissions() { \
+        chmod -R g+rwX,o+rX "$@"; \
+        find "$@" -type d -exec chmod g+s {} \;; \
+    } && \
+    fix-permissions ${HOME} ${CONDA_DIR} && \
+    chgrp -R 0 ${HOME} ${CONDA_DIR} && \
+    chmod -R g+rwX ${HOME} ${CONDA_DIR} && \
+    mkdir -p ${HOME}/.jupyter && \
+    chmod -R 777 ${HOME}/.jupyter
+
+# Add start-notebook.sh script (minimal implementation)
+RUN echo '#!/bin/bash\n\
+set -e\n\
+exec jupyter lab "$@"\n\
+' > /usr/local/bin/start-notebook.sh && \
+    chmod +x /usr/local/bin/start-notebook.sh
+
+# Set working directory
+WORKDIR ${HOME}/work
+
+USER ${NB_USER}
+
+# Expose JupyterLab port
+EXPOSE 8888
+
+# Environment variables
+ENV JUPYTER_ENABLE_LAB=yes \
+    SHELL=/bin/bash
+
+# Add CUDA version label for image tracking
+ARG CUDA_VERSION
+LABEL cuda.version="${CUDA_VERSION}" \
+      org.opencontainers.image.title="Pyrrhus JupyterLab with CUDA ${CUDA_VERSION}" \
+      org.opencontainers.image.description="NVIDIA-branded JupyterLab with GPU dashboards and CUDA ${CUDA_VERSION} support" \
+      org.opencontainers.image.vendor="Pyrrhus"
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["start-notebook.sh"]
+

@@ -1,10 +1,18 @@
 # Ignore unnecessary files to speed up Docker context
 *.md
+!README.md
 .git
 .gitignore
+.github
 nvidia-theme/node_modules
 nvidia-theme/lib
 nvidia-theme/tsconfig.tsbuildinfo
 *.pyc
 __pycache__
 .DS_Store
+
+# Ignore build scripts (not needed in image)
+build-cuda.sh
+test-cuda.sh
+debug.sh
+test-tours.sh

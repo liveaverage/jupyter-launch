@@ -9,6 +9,7 @@
 - Interactive guided tours
 - Remote kernel gateway support
 - Disabled update/news notifications
+- **Multi-CUDA support**: Pre-built images for CUDA 11.8, 12.1, and 12.4
 
 Environment variables:
 
@@ -45,18 +46,96 @@ Remote kernel usage from a lightweight client:
 - Start the container with `-e KERNEL_GATEWAY=1 -p 9999:9999`.
 - From a local JupyterLab client, install `jupyter_server_gateway` and configure a Gateway Server at `http://<host>:9999`.
 
-Usage examples:
+## CUDA Support
+
+This project supports multiple CUDA versions via separate base images:
+
+- **CUDA 11.8**: For older GPUs and legacy compatibility
+- **CUDA 12.1**: Balanced support for recent GPUs  
+- **CUDA 12.4**: Latest features for newest GPUs (H100, L4, etc.)
+
+### Pre-built Images (GitHub Container Registry)
+
+Pull pre-built images from GHCR:
 
 ```bash
-docker build -t nv-jlab -f lp-pyrrhus-jupyter-launch/Dockerfile.jupyterlab .
+# Latest CUDA 12.4
+docker pull ghcr.io/[your-org]/pyrrhus-jupyter:latest
 
+# Specific CUDA versions
+docker pull ghcr.io/[your-org]/pyrrhus-jupyter:cuda-11.8
+docker pull ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
+docker pull ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.4
+```
+
+### Building Locally
+
+Build all CUDA variants:
+
+```bash
+cd lp-pyrrhus-jupyter-launch
+./build-cuda.sh
+```
+
+Build a specific CUDA version:
+
+```bash
+./build-cuda.sh 12.1
+```
+
+Or manually with Docker:
+
+```bash
+docker build -f Dockerfile.cuda \
+  --build-arg CUDA_VERSION=12.1 \
+  --build-arg UBUNTU_VERSION=22.04 \
+  -t pyrrhus-jupyter:cuda-12.1 .
+```
+
+### Usage Examples
+
+Using pre-built CUDA images:
+
+```bash
 # Launch with repo clone and auto-open first notebook
-docker run --gpus all -p 8888:8888 -e GITHUB_REPO=https://github.com/brevdev/notebooks.git nv-jlab
+docker run --gpus all -p 8888:8888 \
+  -e GITHUB_REPO=https://github.com/brevdev/notebooks.git \
+  ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
 
 # Launch with explicit notebook
-docker run -p 8888:8888 -e GITHUB_REPO=https://github.com/brevdev/notebooks.git -e AUTO_NOTEBOOK=nemo-reranker.ipynb nv-jlab
+docker run --gpus all -p 8888:8888 \
+  -e GITHUB_REPO=https://github.com/brevdev/notebooks.git \
+  -e AUTO_NOTEBOOK=nemo-reranker.ipynb \
+  ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
 
 # Headless kernel mode (remote kernel)
-docker run --gpus all -p 9999:9999 -e KERNEL_GATEWAY=1 nv-jlab
+docker run --gpus all -p 9999:9999 \
+  -e KERNEL_GATEWAY=1 \
+  ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
 ```
+
+Using locally built images:
+
+```bash
+# Standard build (non-CUDA)
+docker build -t nv-jlab -f Dockerfile .
+
+# Launch with repo clone
+docker run --gpus all -p 8888:8888 \
+  -e GITHUB_REPO=https://github.com/brevdev/notebooks.git \
+  nv-jlab
+```
+
+### CI/CD
+
+GitHub Actions automatically builds and pushes images to GHCR on:
+- Push to `main` branch
+- Git tags (e.g., `v1.0.0`)
+- Manual workflow dispatch
+
+Images are tagged with:
+- `cuda-{version}` - Specific CUDA version
+- `cuda-{version}-latest` - Latest build of that CUDA version
+- `cuda-{version}-{git-sha}` - Specific commit
+- `latest` - Latest CUDA version (12.4)
 

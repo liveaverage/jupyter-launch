@@ -1,0 +1,20 @@
+# CUDA Version Configuration
+# This file defines the CUDA versions built by CI/CD and local scripts
+
+# Supported CUDA versions (major.minor format)
+# Note: CUDA 12.4 used instead of 12.8 (12.8 not released as of Sept 2024)
+# Update this file when new CUDA versions are released
+CUDA_VERSIONS=(
+    "11.8"  # Legacy support - V100, T4, RTX 20xx series
+    "12.1"  # Stable support - A100, RTX 30xx series
+    "12.4"  # Latest stable - H100, L4, RTX 40xx series
+)
+
+# To add CUDA 12.8 when available:
+# 1. Verify base image exists: docker pull nvidia/cuda:12.8.0-cudnn8-runtime-ubuntu22.04
+# 2. Add "12.8" to CUDA_VERSIONS array above
+# 3. Update build-cuda.sh to source this file
+# 4. Update .github/workflows/build-cuda-images.yml matrix
+# 5. Test locally: ./build-cuda.sh 12.8
+# 6. Update README.md and CUDA_BUILD.md
+

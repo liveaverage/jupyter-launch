@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+echo "--- Pyrrhus JupyterLab Entrypoint ---"
+echo "WORK_ROOT is ${WORK_ROOT}"
+
 # Choose a writable work root (OpenShift-safe)
 WORK_ROOT="/home/jovyan/work"
 if [ ! -w "/home/jovyan" ] || [ ! -w "${WORK_ROOT}" ]; then
@@ -11,10 +14,11 @@ cd "${WORK_ROOT}"
 
 # Clone repo if specified
 if [ -n "${GITHUB_REPO}" ]; then
-    echo "Cloning repository: ${GITHUB_REPO} into ${WORK_ROOT}/repo"
+    echo "Target repository: ${GITHUB_REPO} -> ${WORK_ROOT}/repo"
     if [ -d repo/.git ]; then
-        echo "Repo already exists"
+        echo "Git repository already exists in ${WORK_ROOT}/repo."
     else
+        echo "Cloning repository: ${GITHUB_REPO} into ${WORK_ROOT}/repo"
         if ! git clone "${GITHUB_REPO}" repo; then
             echo "ERROR: failed to clone ${GITHUB_REPO} into ${WORK_ROOT}/repo" >&2
         fi
@@ -26,7 +30,12 @@ fi
 
 # Build args
 ARGS="--ServerApp.ip=0.0.0.0 --ServerApp.root_dir=${WORK_ROOT}"
-[ -z "${JUPYTER_TOKEN}" ] && ARGS="${ARGS} --IdentityProvider.token=''"
+if [ -z "${JUPYTER_TOKEN}" ]; then
+    ARGS="${ARGS} --IdentityProvider.token=''"
+    echo "JUPYTER_TOKEN is unset. Disabling token authentication."
+else
+    echo "JUPYTER_TOKEN is set."
+fi
 
 # Auto-open notebook and set default URL
 TARGET_NOTEBOOK_PATH=""
@@ -36,13 +45,16 @@ DEFAULT_URL="/lab"
 BASE_PATH="${WORK_ROOT}"
 [ -n "${GITHUB_REPO}" ] && BASE_PATH="${WORK_ROOT}/repo"
 
+echo "Searching for notebook in base path: ${BASE_PATH}"
 if [ -n "${AUTO_NOTEBOOK}" ]; then
+    echo "AUTO_NOTEBOOK is set to: ${AUTO_NOTEBOOK}"
     if [[ "${AUTO_NOTEBOOK}" = /* ]]; then
         CANDIDATE_PATH="${AUTO_NOTEBOOK}"
     else
         CANDIDATE_PATH="${BASE_PATH}/${AUTO_NOTEBOOK}"
     fi
 elif [ -n "${AUTO_NOTEBOOK_GLOB}" ]; then
+    echo "AUTO_NOTEBOOK_GLOB is set to: ${AUTO_NOTEBOOK_GLOB}"
     # Find first match by filename under BASE_PATH
     CANDIDATE_PATH=$(find "${BASE_PATH}" -type f -name "${AUTO_NOTEBOOK_GLOB}" 2>/dev/null | head -n 1 || true)
 fi
@@ -51,15 +63,16 @@ if [ -n "${CANDIDATE_PATH}" ] && [ -f "${CANDIDATE_PATH}" ]; then
     TARGET_NOTEBOOK_PATH="${CANDIDATE_PATH}"
     # Compute path relative to WORK_ROOT for default_url
     REL_PATH="${TARGET_NOTEBOOK_PATH#${WORK_ROOT}/}"
-    echo "Requesting notebook open on launch: ${REL_PATH}"
+    echo "SUCCESS: Found notebook to open at ${TARGET_NOTEBOOK_PATH}"
     DEFAULT_URL="/lab/tree/${REL_PATH}?reset"
 else
     # Fall back to opening the repo tree if present
     if [ -d "${WORK_ROOT}/repo" ]; then
         DEFAULT_URL="/lab/tree/repo"
+        echo "INFO: No specific notebook found to open, defaulting to repo root."
     fi
-    if [ -n "${CANDIDATE_PATH}" ] && [ ! -f "${CANDIDATE_PATH}" ]; then
-        echo "Warning: Notebook not found at ${CANDIDATE_PATH}"
+    if [ -n "${CANDIDATE_PATH}" ]; then
+        echo "WARNING: Notebook specified by AUTO_NOTEBOOK or AUTO_NOTEBOOK_GLOB not found at expected path: ${CANDIDATE_PATH}"
     fi
 fi
 
@@ -67,8 +80,11 @@ fi
 ARGS="${ARGS} --LabServerApp.default_url=${DEFAULT_URL}"
 
 # Debug output
-echo "Starting JupyterLab with args: $ARGS"
+echo "-------------------------------------"
+echo "Final JupyterLab command:"
+echo "exec start-notebook.sh ${ARGS}"
 echo "Working directory: $(pwd)"
+echo "-------------------------------------"
 
 # Ensure a writable runtime directory (fixes OpenShift arbitrary UID perms)
 if [ -z "${JUPYTER_RUNTIME_DIR}" ]; then
