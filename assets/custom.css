@@ -1,0 +1,62 @@
+/* NVIDIA JupyterLab Theme Customizations */
+
+/* Brand colors */
+:root {
+  --jp-brand-color0: #76B900;
+  --jp-brand-color1: #76B900;
+  --jp-brand-color2: #5A8C00;
+  --jp-brand-color3: #4E7A00;
+  --jp-brand-color4: #3D6100;
+  --jp-ui-font-color1: #E0E0E0;
+  --jp-ui-inverse-font-color1: #111111;
+}
+
+/* Override logo in top bar */
+.jp-LabLogo svg {
+  display: none !important;
+}
+
+.jp-LabLogo::after {
+  content: "NVIDIA";
+  color: #76B900;
+  font-weight: bold;
+  font-size: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 32px;
+  margin-left: 8px;
+}
+
+/* Accent colors for UI elements */
+.jp-mod-selected {
+  background-color: var(--jp-brand-color1) !important;
+}
+
+.jp-DirListing-item.jp-mod-selected {
+  background: rgba(118, 185, 0, 0.15) !important;
+}
+
+/* Tab styling */
+.jp-DockPanel-tabBar .lm-TabBar-tab.lm-mod-current {
+  border-top: 3px solid var(--jp-brand-color0);
+}
+
+/* Button styling */
+.jp-Button.jp-mod-styled.jp-mod-accept {
+  background: var(--jp-brand-color1);
+}
+
+.jp-Button.jp-mod-styled.jp-mod-accept:hover {
+  background: var(--jp-brand-color2);
+}
+
+/* Notebook cells accent */
+.jp-Notebook .jp-Cell.jp-mod-active .jp-InputPrompt,
+.jp-Notebook .jp-Cell.jp-mod-active .jp-OutputPrompt {
+  color: var(--jp-brand-color0);
+}
+
+/* Progress bars */
+.jp-Notebook .jp-Cell .jp-Cell-inputWrapper .jp-InputArea-editor .jp-CodeMirrorEditor .CodeMirror-activeline-background {
+  background: rgba(118, 185, 0, 0.05);
+}
+

@@ -1,0 +1,108 @@
+/* NVIDIA Theme for JupyterLab */
+
+/* Import the dark theme as base */
+@import url('~@jupyterlab/theme-dark-extension/style/theme.css');
+
+/* NVIDIA Brand Colors */
+:root {
+  --jp-brand-color0: #76B900;
+  --jp-brand-color1: #76B900;
+  --jp-brand-color2: #5A8C00;
+  --jp-brand-color3: #4E7A00;
+  --jp-brand-color4: #3D6100;
+  
+  /* Override accent colors */
+  --jp-accent-color0: #76B900;
+  --jp-accent-color1: #76B900;
+  --jp-accent-color2: #5A8C00;
+  --jp-accent-color3: #4E7A00;
+  
+  /* Selection colors */
+  --jp-layout-color3: rgba(118, 185, 0, 0.15);
+  
+  /* Success/info colors to match brand */
+  --jp-success-color0: #76B900;
+  --jp-success-color1: #5A8C00;
+  --jp-info-color0: #76B900;
+  --jp-info-color1: #5A8C00;
+}
+
+/* Hide default Jupyter logo */
+.jp-LabLogo svg,
+#jp-MainLogo svg {
+  display: none !important;
+}
+
+/* Replace with NVIDIA logo */
+.jp-LabLogo {
+  background-image: url('nvidia-logo.svg');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  width: 60px;
+  height: 40px;
+  margin: 0 8px;
+}
+
+/* Selected items */
+.jp-mod-selected,
+.jp-DirListing-item.jp-mod-selected {
+  background-color: rgba(118, 185, 0, 0.15) !important;
+}
+
+/* Active tabs */
+.jp-DockPanel-tabBar .lm-TabBar-tab.lm-mod-current {
+  border-top: 3px solid var(--jp-brand-color0);
+}
+
+/* Buttons */
+.jp-Button.jp-mod-styled.jp-mod-accept,
+.jp-Dialog-button.jp-mod-accept {
+  background: var(--jp-brand-color0);
+  color: white;
+}
+
+.jp-Button.jp-mod-styled.jp-mod-accept:hover,
+.jp-Dialog-button.jp-mod-accept:hover {
+  background: var(--jp-brand-color2);
+}
+
+/* Notebook cells */
+.jp-Notebook .jp-Cell.jp-mod-active .jp-InputPrompt,
+.jp-Notebook .jp-Cell.jp-mod-active .jp-OutputPrompt {
+  color: var(--jp-brand-color0);
+}
+
+/* Links */
+a {
+  color: var(--jp-brand-color0);
+}
+
+a:hover {
+  color: var(--jp-brand-color1);
+}
+
+/* Progress bars */
+.jp-Notebook .jp-Cell .jp-Cell-inputWrapper .jp-InputArea-editor .jp-CodeMirrorEditor .CodeMirror-activeline-background {
+  background: rgba(118, 185, 0, 0.05);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar-thumb {
+  background: var(--jp-brand-color3);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--jp-brand-color2);
+}
+
+/* Status bar */
+.jp-NotebookPanel-toolbar {
+  border-top: 2px solid var(--jp-brand-color3);
+}
+
+/* Terminal cursor */
+.jp-Terminal .xterm-cursor-layer {
+  color: var(--jp-brand-color0);
+}
+

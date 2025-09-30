@@ -1,1 +1,141 @@
 # jupyter-launch
+
+## NVIDIA-branded JupyterLab with GPU dashboards and remote kernel support
+
+### Features
+- NVIDIA-themed dark mode with green accent colors (#76B900)
+- Automatic notebook opening from cloned repositories
+- GPU monitoring dashboards (when GPUs available)
+- Interactive guided tours
+- Remote kernel gateway support
+- Disabled update/news notifications
+- **Multi-CUDA support**: Pre-built images for CUDA 11.8, 12.1, and 12.4
+
+Environment variables:
+
+- `GITHUB_REPO`: Optional Git repo to clone into `/home/jovyan/work/repo`.
+- `AUTO_NOTEBOOK`: Optional path (relative to repo root or absolute) of a notebook to auto-open.
+- `AUTO_NOTEBOOK_GLOB`: Optional glob (e.g., `*.ipynb`) to pick the first matching notebook.
+- `JUPYTER_TOKEN`: If empty, token auth is disabled. If set, will be used as login token.
+- `KERNEL_GATEWAY`: If set to `1`, start `jupyter kernelgateway` (headless kernel mode) instead of JupyterLab.
+- `KERNEL_GATEWAY_PORT`: Port for kernel gateway (default `9999`).
+
+Branding:
+
+- Dark theme is default with NVIDIA accent (`#76B900`).
+- Favicon shows NVIDIA logo.
+- Top-left logo replaced with "NVIDIA" text.
+- Green accent colors throughout UI.
+
+GPU dashboards:
+
+- `jupyterlab-nvdashboard` is installed. Access via the "GPU Dashboards" menu in JupyterLab.
+- **Note**: GPU dashboards only appear when NVIDIA GPUs are detected. Use `--gpus all` flag with Docker.
+- If no GPUs are available, the extension loads but the menu won't appear.
+
+Interactive tour:
+
+- JupyterLab Tour extension is installed and auto-starts on first launch.
+- Two guided tours available:
+  - **Welcome to NVIDIA JupyterLab**: Overview of features and navigation
+  - **GPU Features Tour**: How to access GPU dashboards and monitoring
+- Access tours anytime from Help menu > Tours
+
+Remote kernel usage from a lightweight client:
+
+- Start the container with `-e KERNEL_GATEWAY=1 -p 9999:9999`.
+- From a local JupyterLab client, install `jupyter_server_gateway` and configure a Gateway Server at `http://<host>:9999`.
+
+## CUDA Support
+
+This project supports multiple CUDA versions via separate base images:
+
+- **CUDA 11.8**: For older GPUs and legacy compatibility
+- **CUDA 12.1**: Balanced support for recent GPUs  
+- **CUDA 12.4**: Latest features for newest GPUs (H100, L4, etc.)
+
+### Pre-built Images (GitHub Container Registry)
+
+Pull pre-built images from GHCR:
+
+```bash
+# Latest CUDA 12.4
+docker pull ghcr.io/[your-org]/pyrrhus-jupyter:latest
+
+# Specific CUDA versions
+docker pull ghcr.io/[your-org]/pyrrhus-jupyter:cuda-11.8
+docker pull ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
+docker pull ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.4
+```
+
+### Building Locally
+
+Build all CUDA variants:
+
+```bash
+cd lp-pyrrhus-jupyter-launch
+./build-cuda.sh
+```
+
+Build a specific CUDA version:
+
+```bash
+./build-cuda.sh 12.1
+```
+
+Or manually with Docker:
+
+```bash
+docker build -f Dockerfile.cuda \
+  --build-arg CUDA_VERSION=12.1 \
+  --build-arg UBUNTU_VERSION=22.04 \
+  -t pyrrhus-jupyter:cuda-12.1 .
+```
+
+### Usage Examples
+
+Using pre-built CUDA images:
+
+```bash
+# Launch with repo clone and auto-open first notebook
+docker run --gpus all -p 8888:8888 \
+  -e GITHUB_REPO=https://github.com/brevdev/notebooks.git \
+  ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
+
+# Launch with explicit notebook
+docker run --gpus all -p 8888:8888 \
+  -e GITHUB_REPO=https://github.com/brevdev/notebooks.git \
+  -e AUTO_NOTEBOOK=nemo-reranker.ipynb \
+  ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
+
+# Headless kernel mode (remote kernel)
+docker run --gpus all -p 9999:9999 \
+  -e KERNEL_GATEWAY=1 \
+  ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
+```
+
+Using locally built images:
+
+```bash
+# Standard build (non-CUDA)
+docker build -t nv-jlab -f Dockerfile .
+
+# Launch with repo clone
+docker run --gpus all -p 8888:8888 \
+  -e GITHUB_REPO=https://github.com/brevdev/notebooks.git \
+  nv-jlab
+```
+
+### CI/CD
+
+GitHub Actions automatically builds and pushes images to GHCR on:
+- Push to `main` branch
+- Git tags (e.g., `v1.0.0`)
+- Manual workflow dispatch
+
+Images are tagged with:
+- `cuda-{version}` - Specific CUDA version
+- `cuda-{version}-latest` - Latest build of that CUDA version
+- `cuda-{version}-{git-sha}` - Specific commit
+- `latest` - Latest CUDA version (12.4)
+

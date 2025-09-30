@@ -1,0 +1,39 @@
+{
+  "name": "@nvidia/jupyterlab-theme",
+  "version": "1.0.0",
+  "description": "NVIDIA theme for JupyterLab",
+  "keywords": ["jupyter", "jupyterlab", "jupyterlab-extension", "jupyterlab-theme"],
+  "homepage": "https://github.com/nvidia/jupyterlab-theme",
+  "license": "BSD-3-Clause",
+  "author": "NVIDIA",
+  "files": ["lib/**/*.{d.ts,eot,gif,html,jpg,js,js.map,json,png,svg,woff2,ttf}", "style/**/*.{css,eot,gif,html,jpg,json,png,svg,woff2,ttf}"],
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "style": "style/index.css",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nvidia/jupyterlab-theme.git"
+  },
+  "scripts": {
+    "build": "jlpm run build:lib",
+    "build:lib": "tsc",
+    "clean": "jlpm run clean:lib",
+    "clean:lib": "rimraf lib tsconfig.tsbuildinfo",
+    "clean:all": "jlpm run clean:lib",
+    "watch": "run-p watch:src",
+    "watch:src": "tsc -w"
+  },
+  "dependencies": {
+    "@jupyterlab/application": "^4.0.0",
+    "@jupyterlab/apputils": "^4.0.0"
+  },
+  "devDependencies": {
+    "rimraf": "^3.0.2",
+    "typescript": "~5.0.2"
+  },
+  "jupyterlab": {
+    "extension": true,
+    "themePath": "style/theme.css"
+  }
+}
+

@@ -1,0 +1,153 @@
+name: Build and Push CUDA Images
+
+# Trigger on push to main, tags, or manual dispatch
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      cuda_versions:
+        description: 'CUDA versions to build (comma-separated, e.g., "11.8,12.1,12.4")'
+        required: false
+        default: '11.8,12.1,12.4'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/pyrrhus-jupyter
+
+jobs:
+  build-matrix:
+    name: Build CUDA ${{ matrix.cuda_version }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      
+    strategy:
+      fail-fast: false
+      matrix:
+        # CUDA versions to build
+        cuda_version: ['11.8', '12.1', '12.4']
+        include:
+          # Map CUDA version to Ubuntu version
+          - cuda_version: '11.8'
+            ubuntu_version: '20.04'
+          - cuda_version: '12.1'
+            ubuntu_version: '22.04'
+          - cuda_version: '12.4'
+            ubuntu_version: '22.04'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+        
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=cuda-${{ matrix.cuda_version }}
+            type=raw,value=cuda-${{ matrix.cuda_version }}-latest
+            type=raw,value=cuda-${{ matrix.cuda_version }}-{{sha}}
+            type=semver,pattern={{version}}-cuda-${{ matrix.cuda_version }}
+            type=semver,pattern={{major}}.{{minor}}-cuda-${{ matrix.cuda_version }}
+          labels: |
+            org.opencontainers.image.title=Pyrrhus JupyterLab CUDA ${{ matrix.cuda_version }}
+            org.opencontainers.image.description=NVIDIA-branded JupyterLab with GPU dashboards and CUDA ${{ matrix.cuda_version }} support
+            cuda.version=${{ matrix.cuda_version }}
+            ubuntu.version=${{ matrix.ubuntu_version }}
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.cuda
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            CUDA_VERSION=${{ matrix.cuda_version }}
+            UBUNTU_VERSION=${{ matrix.ubuntu_version }}
+          cache-from: type=gha,scope=cuda-${{ matrix.cuda_version }}
+          cache-to: type=gha,mode=max,scope=cuda-${{ matrix.cuda_version }}
+          platforms: linux/amd64
+          
+      - name: Generate image summary
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "### 🐳 Image Built Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**CUDA Version:** ${{ matrix.cuda_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Ubuntu Version:** ${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Pull command:**" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cuda-${{ matrix.cuda_version }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Run command:**" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker run --rm --gpus all -p 8888:8888 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cuda-${{ matrix.cuda_version }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  tag-latest:
+    name: Tag Latest Image
+    needs: build-matrix
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Pull and re-tag latest CUDA version as 'latest'
+        run: |
+          # Pull the latest CUDA version (12.4)
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cuda-12.4
+          
+          # Tag as 'latest'
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cuda-12.4 \
+                     ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          
+          # Push 'latest' tag
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          
+      - name: Create summary
+        run: |
+          echo "### ✅ All Images Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Available tags:" >> $GITHUB_STEP_SUMMARY
+          echo "- \`cuda-11.8\`, \`cuda-11.8-latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`cuda-12.1\`, \`cuda-12.1-latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`cuda-12.4\`, \`cuda-12.4-latest\`, \`latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "View packages at: https://github.com/${{ github.repository_owner }}?tab=packages" >> $GITHUB_STEP_SUMMARY
+
