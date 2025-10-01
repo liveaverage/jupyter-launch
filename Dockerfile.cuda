@@ -33,7 +33,7 @@ ENV CONDA_DIR=/opt/conda \
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh && \
     /bin/bash /tmp/miniconda.sh -b -p ${CONDA_DIR} && \
     rm /tmp/miniconda.sh && \
-    conda clean -tipsy
+    conda clean --all -f -y
 
 # Create jovyan user (standard Jupyter user)
 ARG NB_USER=jovyan
@@ -55,7 +55,7 @@ RUN conda install -y -c conda-forge \
     notebook=7.0.6 \
     ipykernel=6.27.1 \
     ipywidgets=8.1.1 && \
-    conda clean -tipsy
+    conda clean --all -f -y
 
 # Install NVIDIA monitoring and Jupyter extensions
 RUN pip install --no-cache-dir \
