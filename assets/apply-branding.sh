@@ -4,26 +4,46 @@ set -e
 
 echo "Applying NVIDIA branding..."
 
-# Find the most likely static directory
+ASSETS_DIR="/opt/nvidia-assets"
+LAB_STATIC_DIR=""
+
+# Try multiple search paths for JupyterLab static directory
+# 1. Conda installation
 if [ -d "/opt/conda/share/jupyter/lab/static" ]; then
     LAB_STATIC_DIR="/opt/conda/share/jupyter/lab/static"
+# 2. System Python installation (pip)
+elif [ -d "/usr/local/share/jupyter/lab/static" ]; then
+    LAB_STATIC_DIR="/usr/local/share/jupyter/lab/static"
+# 3. Alternative system locations
+elif [ -d "/usr/share/jupyter/lab/static" ]; then
+    LAB_STATIC_DIR="/usr/share/jupyter/lab/static"
+# 4. Search in Python site-packages
 else
-    LAB_STATIC_DIR=$(find /opt/conda -path "*/jupyter/lab/static" -type d | head -1)
+    LAB_STATIC_DIR=$(find /usr/local/lib/python*/site-packages/jupyterlab/static -type d 2>/dev/null | head -1)
+    if [ -z "$LAB_STATIC_DIR" ]; then
+        LAB_STATIC_DIR=$(find /usr/lib/python*/site-packages/jupyterlab/static -type d 2>/dev/null | head -1)
+    fi
 fi
 
-ASSETS_DIR="/opt/nvidia-assets"
 INDEX_HTML="${LAB_STATIC_DIR}/index.html"
 
 if [ -z "$LAB_STATIC_DIR" ] || [ ! -f "$INDEX_HTML" ]; then
     echo "ERROR: JupyterLab static directory or index.html not found."
+    echo "Searched locations:"
+    echo "  - /opt/conda/share/jupyter/lab/static"
+    echo "  - /usr/local/share/jupyter/lab/static"
+    echo "  - /usr/share/jupyter/lab/static"
+    echo "  - /usr/local/lib/python*/site-packages/jupyterlab/static"
+    echo "  - /usr/lib/python*/site-packages/jupyterlab/static"
     exit 1
 fi
 echo "Found JupyterLab static directory: $LAB_STATIC_DIR"
 
 # 1. Replace favicons
 echo "Updating favicon..."
-find /opt/conda -name "favicon*.ico" -type f -exec cp -f "${ASSETS_DIR}/favicon.ico" {} \; 2>/dev/null || true
-# Ensure it exists in the main static directory as well for good measure
+# Search in both conda and system Python locations
+find /opt/conda /usr/local /usr -name "favicon*.ico" -type f -exec cp -f "${ASSETS_DIR}/favicon.ico" {} \; 2>/dev/null || true
+# Ensure it exists in the main static directory
 cp -f "${ASSETS_DIR}/favicon.ico" "${LAB_STATIC_DIR}/favicon.ico" 2>/dev/null || true
 
 # 2. Inject NVIDIA branding CSS into index.html
