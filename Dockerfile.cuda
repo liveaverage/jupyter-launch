@@ -36,6 +36,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
     conda clean --all -f -y
 
 # Create jovyan user (standard Jupyter user)
+# OpenShift compatible: handle existing GID, set proper permissions
 ARG NB_USER=jovyan
 ARG NB_UID=1000
 ARG NB_GID=100
@@ -44,10 +45,16 @@ ENV NB_USER=${NB_USER} \
     NB_GID=${NB_GID} \
     HOME=/home/${NB_USER}
 
-RUN groupadd --gid ${NB_GID} ${NB_USER} && \
+# Create user/group, handling if GID already exists
+RUN if ! getent group ${NB_GID} > /dev/null 2>&1; then \
+        groupadd --gid ${NB_GID} ${NB_USER}; \
+    fi && \
     useradd --uid ${NB_UID} --gid ${NB_GID} --create-home --shell /bin/bash ${NB_USER} && \
     mkdir -p ${HOME}/work && \
-    chown -R ${NB_USER}:${NB_GID} ${HOME}
+    chown -R ${NB_USER}:${NB_GID} ${HOME} && \
+    chmod -R g+rwX ${HOME} && \
+    chgrp -R 0 ${HOME} && \
+    chmod -R g+s ${HOME}
 
 # Install JupyterLab and extensions
 RUN conda install -y -c conda-forge \
@@ -102,16 +109,16 @@ RUN jupyter labextension disable "jupyterlab-tour:notebook-tours" && \
     mkdir -p /etc/jupyter/labconfig && \
     cp /opt/nvidia-assets/page_config.json /etc/jupyter/labconfig/page_config.json
 
-# Fix permissions for OpenShift compatibility
+# Fix permissions for OpenShift compatibility (arbitrary UID support)
 RUN fix-permissions() { \
-        chmod -R g+rwX,o+rX "$@"; \
-        find "$@" -type d -exec chmod g+s {} \;; \
+        chmod -R g+rwX,o+rX "$@" 2>/dev/null || true; \
+        find "$@" -type d -exec chmod g+s {} \; 2>/dev/null || true; \
     } && \
     fix-permissions ${HOME} ${CONDA_DIR} && \
-    chgrp -R 0 ${HOME} ${CONDA_DIR} && \
+    chgrp -R 0 ${HOME} ${CONDA_DIR} 2>/dev/null || true && \
     chmod -R g+rwX ${HOME} ${CONDA_DIR} && \
-    mkdir -p ${HOME}/.jupyter && \
-    chmod -R 777 ${HOME}/.jupyter
+    mkdir -p ${HOME}/.jupyter ${HOME}/.local ${HOME}/.cache && \
+    chmod -R 777 ${HOME}/.jupyter ${HOME}/.local ${HOME}/.cache
 
 # Add start-notebook.sh script (minimal implementation)
 RUN echo '#!/bin/bash\n\
