@@ -1,9 +1,9 @@
 #!/bin/bash
-/// Purpose: Build multi-CUDA variant images locally for testing
-/// Inputs: Optional CUDA version argument (defaults to all: 11.8, 12.1, 12.4)
-/// Outputs: Tagged Docker images for each CUDA version
-/// Usage: ./build-cuda.sh [cuda_version]
-/// Example: ./build-cuda.sh 12.1  # build only CUDA 12.1
+#Purpose: Build multi-CUDA variant images locally for testing
+#Inputs: Optional CUDA version argument (defaults to all: 11.8, 12.1, 12.4)
+#Outputs: Tagged Docker images for each CUDA version
+#Usage: ./build-cuda.sh [cuda_version]
+#Example: ./build-cuda.sh 12.1  # build only CUDA 12.1
 
 set -e
 
