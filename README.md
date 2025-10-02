@@ -10,6 +10,7 @@
 - Remote kernel gateway support
 - Disabled update/news notifications
 - **Multi-CUDA support**: Pre-built images for CUDA 11.8 and 12.1
+- **OpenShift compatible**: Works with arbitrary UIDs (uses aggressive 777 permissions for guaranteed compatibility)
 
 Environment variables:
 
@@ -19,6 +20,7 @@ Environment variables:
 - `JUPYTER_TOKEN`: If empty, token auth is disabled. If set, will be used as login token.
 - `KERNEL_GATEWAY`: If set to `1`, start `jupyter kernelgateway` (headless kernel mode) instead of JupyterLab.
 - `KERNEL_GATEWAY_PORT`: Port for kernel gateway (default `9999`).
+- `NOTEBOOK_URL`: Optional URL to download notebook from. Supports hybrid pattern: Kubernetes orchestrator uses initContainer (preferred), standalone Docker downloads directly (fallback).
 
 Branding:
 
@@ -104,6 +106,18 @@ docker run --gpus all -p 8888:8888 \
 docker run --gpus all -p 8888:8888 \
   -e GITHUB_REPO=https://github.com/brevdev/notebooks.git \
   -e AUTO_NOTEBOOK=nemo-reranker.ipynb \
+  ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
+
+# Launch with notebook from URL (standalone Docker pattern)
+docker run --gpus all -p 8888:8888 \
+  -e NOTEBOOK_URL=https://raw.githubusercontent.com/brevdev/launchables/main/biomistral.ipynb \
+  -e AUTO_NOTEBOOK=biomistral.ipynb \
+  ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
+
+# Launch with pre-mounted notebook (volume mount pattern)
+docker run --gpus all -p 8888:8888 \
+  -v $(pwd)/my-notebook.ipynb:/home/jovyan/work/my-notebook.ipynb \
+  -e AUTO_NOTEBOOK=/home/jovyan/work/my-notebook.ipynb \
   ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
 
 # Headless kernel mode (remote kernel)

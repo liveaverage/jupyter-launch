@@ -2,15 +2,38 @@
 set -e
 
 echo "--- Pyrrhus JupyterLab Entrypoint ---"
-echo "WORK_ROOT is ${WORK_ROOT}"
+echo "Running as UID: $(id -u), GID: $(id -g), Groups: $(id -G)"
 
-# Choose a writable work root (OpenShift-safe)
-WORK_ROOT="/home/jovyan/work"
-if [ ! -w "/home/jovyan" ] || [ ! -w "${WORK_ROOT}" ]; then
-    WORK_ROOT="/tmp/work"
+# Determine writable work root (prioritize mounted volumes, then fall back to guaranteed-writable)
+# Note: All permissions must be set at build-time. Runtime chmod doesn't work in OpenShift.
+# Strategy:
+# 1. Check if /home/jovyan/work exists as volume mount (K8s pattern) - use it
+# 2. Try to create/use /home/jovyan/work if /home/jovyan is writable
+# 3. Fall back to /tmp/work (always writable in any environment)
+
+WORK_ROOT=""
+
+# Priority 1: Check if /home/jovyan/work exists and is writable (likely a K8s volume mount)
+if [ -d "/home/jovyan/work" ] && [ -w "/home/jovyan/work" ]; then
+    WORK_ROOT="/home/jovyan/work"
+    echo "Using mounted volume: ${WORK_ROOT}"
+# Priority 2: Try to create/use /home/jovyan/work if /home/jovyan is writable
+elif [ -d "/home/jovyan" ] && [ -w "/home/jovyan" ]; then
+    mkdir -p "/home/jovyan/work" 2>/dev/null && WORK_ROOT="/home/jovyan/work"
+    if [ -n "$WORK_ROOT" ]; then
+        echo "Created work directory: ${WORK_ROOT}"
+    fi
 fi
-mkdir -p "${WORK_ROOT}" || true
+
+# Priority 3: Fall back to /tmp/work (universally writable - OpenShift, K8s, Docker all support)
+if [ -z "$WORK_ROOT" ]; then
+    WORK_ROOT="/tmp/work"
+    mkdir -p "${WORK_ROOT}"
+    echo "Using fallback work directory: ${WORK_ROOT} (universally writable)"
+fi
+
 cd "${WORK_ROOT}"
+echo "Working directory: $(pwd)"
 
 # Clone repo if specified
 if [ -n "${GITHUB_REPO}" ]; then
@@ -25,6 +48,42 @@ if [ -n "${GITHUB_REPO}" ]; then
     fi
     if [ -f repo/setup.sh ]; then
         (cd repo && chmod +x setup.sh && ./setup.sh)
+    fi
+fi
+
+# Download notebook from URL if specified and not already present
+# Pattern: initContainer (K8s) handles download first, this is fallback for standalone Docker
+if [ -n "${NOTEBOOK_URL}" ] && [ -n "${AUTO_NOTEBOOK}" ]; then
+    # Determine target path
+    if [[ "${AUTO_NOTEBOOK}" = /* ]]; then
+        TARGET_PATH="${AUTO_NOTEBOOK}"
+    else
+        TARGET_PATH="${WORK_ROOT}/${AUTO_NOTEBOOK}"
+    fi
+    
+    # Only download if file doesn't already exist (initContainer may have downloaded it)
+    if [ ! -f "${TARGET_PATH}" ]; then
+        echo "Downloading notebook from URL: ${NOTEBOOK_URL} -> ${TARGET_PATH}"
+        DOWNLOAD_SUCCESS=false
+        
+        if command -v curl &> /dev/null; then
+            if curl -fsSL -o "${TARGET_PATH}" "${NOTEBOOK_URL}"; then
+                echo "Successfully downloaded notebook to ${TARGET_PATH}"
+                DOWNLOAD_SUCCESS=true
+            fi
+        elif command -v wget &> /dev/null; then
+            if wget -q -O "${TARGET_PATH}" "${NOTEBOOK_URL}"; then
+                echo "Successfully downloaded notebook to ${TARGET_PATH}"
+                DOWNLOAD_SUCCESS=true
+            fi
+        fi
+        
+        if [ "$DOWNLOAD_SUCCESS" = false ]; then
+            echo "ERROR: Failed to download notebook from ${NOTEBOOK_URL}" >&2
+            echo "Neither curl nor wget succeeded or are available" >&2
+        fi
+    else
+        echo "Notebook already exists at ${TARGET_PATH} (likely from initContainer)"
     fi
 fi
 

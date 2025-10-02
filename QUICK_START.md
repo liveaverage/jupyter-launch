@@ -59,10 +59,22 @@ docker run --rm -p 8888:8888 pyrrhus-jupyter:cuda-12.1
 # With GPU
 docker run --rm --gpus all -p 8888:8888 pyrrhus-jupyter:cuda-12.1
 
-# With auto-loaded notebook
+# With auto-loaded notebook from repo
 docker run --rm --gpus all -p 8888:8888 \
   -e GITHUB_REPO=https://github.com/user/repo.git \
   -e AUTO_NOTEBOOK=my-notebook.ipynb \
+  pyrrhus-jupyter:cuda-12.1
+
+# With notebook from URL
+docker run --rm --gpus all -p 8888:8888 \
+  -e NOTEBOOK_URL=https://raw.githubusercontent.com/brevdev/launchables/main/biomistral.ipynb \
+  -e AUTO_NOTEBOOK=biomistral.ipynb \
+  pyrrhus-jupyter:cuda-12.1
+
+# With volume-mounted notebook
+docker run --rm --gpus all -p 8888:8888 \
+  -v $(pwd)/my-notebook.ipynb:/home/jovyan/work/notebook.ipynb \
+  -e AUTO_NOTEBOOK=/home/jovyan/work/notebook.ipynb \
   pyrrhus-jupyter:cuda-12.1
 
 # With persistent storage
@@ -95,7 +107,8 @@ print(f"GPU count: {torch.cuda.device_count()}")
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `GITHUB_REPO` | Git repository to clone | `https://github.com/user/repo.git` |
-| `AUTO_NOTEBOOK` | Notebook to auto-open | `examples/demo.ipynb` |
+| `NOTEBOOK_URL` | URL to download notebook from | `https://example.com/notebook.ipynb` |
+| `AUTO_NOTEBOOK` | Notebook to auto-open (path or filename) | `examples/demo.ipynb` or `demo.ipynb` |
 | `AUTO_NOTEBOOK_GLOB` | Glob pattern for notebook | `*.ipynb` |
 | `JUPYTER_TOKEN` | Auth token (empty = disabled) | `` (empty) or `mysecret123` |
 | `KERNEL_GATEWAY` | Enable kernel gateway mode | `1` |
