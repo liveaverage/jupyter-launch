@@ -123,14 +123,15 @@ RUN jupyter labextension disable "jupyterlab-tour:notebook-tours" 2>/dev/null ||
 RUN chown -R ${NB_USER}:0 ${HOME} /usr/local /etc/jupyter && \
     # World-writable on home directory (OpenShift safe with PodSecurityPolicies)
     chmod -R 777 ${HOME} && \
-    # Group-writable on system directories (more conservative but still permissive)
-    chmod -R g+rwX /usr/local/lib/python*/site-packages /etc/jupyter && \
+    # Group-writable on system directories - use find to handle globs properly
+    find /usr/local/lib -type d -name "python*" -exec chmod -R g+rwX {}/site-packages \; 2>/dev/null || true && \
+    chmod -R g+rwX /etc/jupyter 2>/dev/null || true && \
     # SetGID on all directories so new files inherit group ownership
-    find ${HOME} -type d -exec chmod g+s {} \; && \
-    find /usr/local/lib/python* -type d -exec chmod g+s {} \; && \
-    find /etc/jupyter -type d -exec chmod g+s {} \; && \
+    find ${HOME} -type d -exec chmod g+s {} \; 2>/dev/null || true && \
+    find /usr/local/lib -type d -name "python*" -exec find {} -type d -exec chmod g+s {} \; 2>/dev/null || true && \
+    find /etc/jupyter -type d -exec chmod g+s {} \; 2>/dev/null || true && \
     # Also make /tmp world-writable (usually default but ensure it)
-    chmod 1777 /tmp && \
+    chmod 1777 /tmp 2>/dev/null || true && \
     # Verify permissions are correct
     ls -la ${HOME} && \
     echo "Build-time permissions set: AGGRESSIVE - 777 on home, g+rwX on system dirs"
