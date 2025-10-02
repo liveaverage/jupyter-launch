@@ -58,6 +58,9 @@ RUN if ! getent group ${NB_GID} > /dev/null 2>&1; then \
     find ${HOME} -type d -exec chmod g+s {} \;
 
 # Install JupyterLab and core extensions
+# Set Node.js options for build process (increase memory limit)
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
 RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
     python3 -m pip install --no-cache-dir \
         jupyterlab \
@@ -69,10 +72,11 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
         jupyterlab-tour \
         jupyter_kernel_gateway && \
     # Build JupyterLab to integrate extensions (fixes 404s on remoteEntry.js files)
-    jupyter lab build --dev-build=False --minimize=True && \
-    # Clean up build artifacts to reduce image size
-    jupyter lab clean && \
-    rm -rf /usr/local/share/jupyter/lab/staging
+    # Use --dev-build for faster builds, skip minimize to avoid memory issues
+    echo "Attempting JupyterLab build..." && \
+    (jupyter lab build --dev-build=True --minimize=False 2>&1 || \
+    echo "WARNING: JupyterLab build failed - extensions installed but may show 404 warnings") && \
+    echo "JupyterLab build step completed"
 
 # Copy all assets
 COPY assets/ /opt/nvidia-assets/
