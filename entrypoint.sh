@@ -4,36 +4,36 @@ set -e
 echo "--- Pyrrhus JupyterLab Entrypoint ---"
 echo "Running as UID: $(id -u), GID: $(id -g), Groups: $(id -G)"
 
-# Determine writable work root (prioritize mounted volumes, then fall back to guaranteed-writable)
-# Note: All permissions must be set at build-time. Runtime chmod doesn't work in OpenShift.
-# Strategy:
-# 1. Check if /home/jovyan/work exists as volume mount (K8s pattern) - use it
-# 2. Try to create/use /home/jovyan/work if /home/jovyan is writable
-# 3. Fall back to /tmp/work (always writable in any environment)
+# Determine writable work root
+# Strategy: Try each location and use the first that works
+# Priority 1: /home/jovyan/work (K8s volume mount or build-time created)
+# Priority 2: /tmp/work (always writable fallback)
 
 WORK_ROOT=""
 
-# Priority 1: Check if /home/jovyan/work exists and is writable (likely a K8s volume mount)
-if [ -d "/home/jovyan/work" ] && [ -w "/home/jovyan/work" ]; then
+# Try /home/jovyan/work first - don't check parent, just try to use it
+if cd /home/jovyan/work 2>/dev/null; then
     WORK_ROOT="/home/jovyan/work"
-    echo "Using mounted volume: ${WORK_ROOT}"
-# Priority 2: Try to create/use /home/jovyan/work if /home/jovyan is writable
-elif [ -d "/home/jovyan" ] && [ -w "/home/jovyan" ]; then
-    mkdir -p "/home/jovyan/work" 2>/dev/null && WORK_ROOT="/home/jovyan/work"
-    if [ -n "$WORK_ROOT" ]; then
-        echo "Created work directory: ${WORK_ROOT}"
+    echo "Using work directory: ${WORK_ROOT}"
+    # Test if writable
+    if ! touch "${WORK_ROOT}/.write_test" 2>/dev/null; then
+        echo "WARNING: ${WORK_ROOT} not writable, falling back"
+        WORK_ROOT=""
+    else
+        rm -f "${WORK_ROOT}/.write_test" 2>/dev/null
     fi
 fi
 
-# Priority 3: Fall back to /tmp/work (universally writable - OpenShift, K8s, Docker all support)
+# Fall back to /tmp/work if needed
 if [ -z "$WORK_ROOT" ]; then
     WORK_ROOT="/tmp/work"
     mkdir -p "${WORK_ROOT}"
-    echo "Using fallback work directory: ${WORK_ROOT} (universally writable)"
+    cd "${WORK_ROOT}"
+    echo "Using fallback work directory: ${WORK_ROOT}"
 fi
 
-cd "${WORK_ROOT}"
 echo "Working directory: $(pwd)"
+echo "WORK_ROOT: ${WORK_ROOT}"
 
 # Clone repo if specified
 if [ -n "${GITHUB_REPO}" ]; then

@@ -118,23 +118,25 @@ RUN jupyter labextension disable "jupyterlab-tour:notebook-tours" 2>/dev/null ||
     jupyter labextension disable "jupyterlab-tour:default-tours" 2>/dev/null || true
 
 # Final AGGRESSIVE OpenShift permissions (BUILD-TIME ONLY - runtime chmod fails)
-# Strategy: Make EVERYTHING world-writable to guarantee it works everywhere
-# Apply to ALL directories that need to be writable by arbitrary UID with GID 0
-RUN chown -R ${NB_USER}:0 ${HOME} /usr/local /etc/jupyter && \
-    # World-writable on home directory (OpenShift safe with PodSecurityPolicies)
-    chmod -R 777 ${HOME} && \
-    # Group-writable on system directories - use find to handle globs properly
-    find /usr/local/lib -type d -name "python*" -exec chmod -R g+rwX {}/site-packages \; 2>/dev/null || true && \
-    chmod -R g+rwX /etc/jupyter 2>/dev/null || true && \
-    # SetGID on all directories so new files inherit group ownership
-    find ${HOME} -type d -exec chmod g+s {} \; 2>/dev/null || true && \
-    find /usr/local/lib -type d -name "python*" -exec find {} -type d -exec chmod g+s {} \; 2>/dev/null || true && \
-    find /etc/jupyter -type d -exec chmod g+s {} \; 2>/dev/null || true && \
-    # Also make /tmp world-writable (usually default but ensure it)
+# Strategy: Make EVERYTHING maximally permissive - just make it work
+# CRITICAL: Parent directory must be traversable for volume mounts to be accessible
+RUN set -x && \
+    # Set ownership to root group (GID 0) - OpenShift requirement
+    chown -R ${NB_USER}:0 ${HOME} 2>/dev/null || true && \
+    chown -R ${NB_USER}:0 /usr/local 2>/dev/null || true && \
+    chown -R ${NB_USER}:0 /etc/jupyter 2>/dev/null || true && \
+    # Make EVERYTHING 777 - maximum permissions
+    chmod -R 777 ${HOME} 2>/dev/null || true && \
+    chmod -R 777 /usr/local 2>/dev/null || true && \
+    chmod -R 777 /etc/jupyter 2>/dev/null || true && \
+    # CRITICAL: Ensure parent /home/jovyan has execute bit for ALL (needed for cd into volume mounts)
+    chmod 777 /home/jovyan 2>/dev/null || true && \
+    # Ensure /tmp is world-writable with sticky bit
     chmod 1777 /tmp 2>/dev/null || true && \
-    # Verify permissions are correct
+    # Verify home directory permissions - should show drwxrwxrwx
+    ls -lad /home/jovyan && \
     ls -la ${HOME} && \
-    echo "Build-time permissions set: AGGRESSIVE - 777 on home, g+rwX on system dirs"
+    echo "Build-time permissions set: MAXIMUM - 777 on everything including parent dirs"
 
 # Add start-notebook.sh script (group-executable)
 RUN printf '#!/bin/bash\nset -e\nexec jupyter lab "$@"\n' > /usr/local/bin/start-notebook.sh && \
