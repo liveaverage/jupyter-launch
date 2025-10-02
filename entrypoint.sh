@@ -4,88 +4,80 @@ set -e
 echo "--- Pyrrhus JupyterLab Entrypoint ---"
 echo "Running as UID: $(id -u), GID: $(id -g), Groups: $(id -G)"
 
-# Determine writable work root
-# Strategy: Try each location and use the first that works
-# Priority 1: /home/jovyan/work (K8s volume mount or build-time created)
-# Priority 2: /tmp/work (always writable fallback)
-
+# STRATEGY: Stage resources to BOTH locations, then use whichever works
+# This ensures notebooks/repos are available regardless of permission issues
+PRIMARY_DIR="/home/jovyan/work"
+FALLBACK_DIR="/tmp/work"
 WORK_ROOT=""
 
-# Try /home/jovyan/work first - don't check parent, just try to use it
-if cd /home/jovyan/work 2>/dev/null; then
-    WORK_ROOT="/home/jovyan/work"
-    echo "Using work directory: ${WORK_ROOT}"
-    # Test if writable
-    if ! touch "${WORK_ROOT}/.write_test" 2>/dev/null; then
-        echo "WARNING: ${WORK_ROOT} not writable, falling back"
-        WORK_ROOT=""
-    else
-        rm -f "${WORK_ROOT}/.write_test" 2>/dev/null
-    fi
-fi
+# Ensure both directories exist
+mkdir -p "${FALLBACK_DIR}" 2>/dev/null || true
+mkdir -p "${PRIMARY_DIR}" 2>/dev/null || true
 
-# Fall back to /tmp/work if needed
-if [ -z "$WORK_ROOT" ]; then
-    WORK_ROOT="/tmp/work"
-    mkdir -p "${WORK_ROOT}"
-    cd "${WORK_ROOT}"
-    echo "Using fallback work directory: ${WORK_ROOT}"
-fi
+echo "Staging directories: PRIMARY=${PRIMARY_DIR}, FALLBACK=${FALLBACK_DIR}"
 
-echo "Working directory: $(pwd)"
-echo "WORK_ROOT: ${WORK_ROOT}"
-
-# Clone repo if specified
+# Clone repo if specified - clone to BOTH locations
 if [ -n "${GITHUB_REPO}" ]; then
-    echo "Target repository: ${GITHUB_REPO} -> ${WORK_ROOT}/repo"
-    if [ -d repo/.git ]; then
-        echo "Git repository already exists in ${WORK_ROOT}/repo."
-    else
-        echo "Cloning repository: ${GITHUB_REPO} into ${WORK_ROOT}/repo"
-        if ! git clone "${GITHUB_REPO}" repo; then
-            echo "ERROR: failed to clone ${GITHUB_REPO} into ${WORK_ROOT}/repo" >&2
+    echo "Cloning repository to both staging locations: ${GITHUB_REPO}"
+    
+    # Try PRIMARY first
+    if cd "${PRIMARY_DIR}" 2>/dev/null && [ -w "${PRIMARY_DIR}" ]; then
+        if [ ! -d "${PRIMARY_DIR}/repo/.git" ]; then
+            echo "Cloning to PRIMARY: ${PRIMARY_DIR}/repo"
+            git clone "${GITHUB_REPO}" "${PRIMARY_DIR}/repo" 2>/dev/null || echo "Clone to PRIMARY failed"
         fi
-    fi
-    if [ -f repo/setup.sh ]; then
-        (cd repo && chmod +x setup.sh && ./setup.sh)
-    fi
-fi
-
-# Download notebook from URL if specified and not already present
-# Pattern: initContainer (K8s) handles download first, this is fallback for standalone Docker
-if [ -n "${NOTEBOOK_URL}" ] && [ -n "${AUTO_NOTEBOOK}" ]; then
-    # Determine target path
-    if [[ "${AUTO_NOTEBOOK}" = /* ]]; then
-        TARGET_PATH="${AUTO_NOTEBOOK}"
-    else
-        TARGET_PATH="${WORK_ROOT}/${AUTO_NOTEBOOK}"
     fi
     
-    # Only download if file doesn't already exist (initContainer may have downloaded it)
-    if [ ! -f "${TARGET_PATH}" ]; then
-        echo "Downloading notebook from URL: ${NOTEBOOK_URL} -> ${TARGET_PATH}"
-        DOWNLOAD_SUCCESS=false
+    # Always clone to FALLBACK too
+    if [ ! -d "${FALLBACK_DIR}/repo/.git" ]; then
+        echo "Cloning to FALLBACK: ${FALLBACK_DIR}/repo"
+        git clone "${GITHUB_REPO}" "${FALLBACK_DIR}/repo" 2>/dev/null || echo "Clone to FALLBACK failed"
+    fi
+    
+    echo "Repository cloned to available locations"
+fi
+
+# Download notebook from URL if specified - copy to BOTH locations
+# Pattern: initContainer (K8s) downloads to PRIMARY, we ensure it's in FALLBACK too
+if [ -n "${NOTEBOOK_URL}" ] && [ -n "${AUTO_NOTEBOOK}" ]; then
+    echo "Staging notebook from ${NOTEBOOK_URL}"
+    
+    # Extract just the filename
+    NOTEBOOK_FILENAME=$(basename "${AUTO_NOTEBOOK}")
+    
+    # Check if already exists in PRIMARY (from initContainer)
+    if [ -f "${PRIMARY_DIR}/${NOTEBOOK_FILENAME}" ]; then
+        echo "Notebook exists in PRIMARY (from initContainer), copying to FALLBACK"
+        cp "${PRIMARY_DIR}/${NOTEBOOK_FILENAME}" "${FALLBACK_DIR}/${NOTEBOOK_FILENAME}" 2>/dev/null || true
+    else
+        # Download to both locations
+        echo "Downloading notebook to both locations"
         
         if command -v curl &> /dev/null; then
-            if curl -fsSL -o "${TARGET_PATH}" "${NOTEBOOK_URL}"; then
-                echo "Successfully downloaded notebook to ${TARGET_PATH}"
-                DOWNLOAD_SUCCESS=true
-            fi
+            curl -fsSL -o "${PRIMARY_DIR}/${NOTEBOOK_FILENAME}" "${NOTEBOOK_URL}" 2>/dev/null || true
+            curl -fsSL -o "${FALLBACK_DIR}/${NOTEBOOK_FILENAME}" "${NOTEBOOK_URL}" 2>/dev/null || true
         elif command -v wget &> /dev/null; then
-            if wget -q -O "${TARGET_PATH}" "${NOTEBOOK_URL}"; then
-                echo "Successfully downloaded notebook to ${TARGET_PATH}"
-                DOWNLOAD_SUCCESS=true
-            fi
+            wget -q -O "${PRIMARY_DIR}/${NOTEBOOK_FILENAME}" "${NOTEBOOK_URL}" 2>/dev/null || true
+            wget -q -O "${FALLBACK_DIR}/${NOTEBOOK_FILENAME}" "${NOTEBOOK_URL}" 2>/dev/null || true
         fi
-        
-        if [ "$DOWNLOAD_SUCCESS" = false ]; then
-            echo "ERROR: Failed to download notebook from ${NOTEBOOK_URL}" >&2
-            echo "Neither curl nor wget succeeded or are available" >&2
-        fi
-    else
-        echo "Notebook already exists at ${TARGET_PATH} (likely from initContainer)"
     fi
+    
+    echo "Notebook staged to available locations"
 fi
+
+# NOW determine which directory to actually use for WORK_ROOT
+# Try PRIMARY first, fall back to FALLBACK
+if cd "${PRIMARY_DIR}" 2>/dev/null && [ -w "${PRIMARY_DIR}" ]; then
+    WORK_ROOT="${PRIMARY_DIR}"
+    echo "Using PRIMARY work directory: ${WORK_ROOT}"
+else
+    WORK_ROOT="${FALLBACK_DIR}"
+    cd "${WORK_ROOT}"
+    echo "Using FALLBACK work directory: ${WORK_ROOT}"
+fi
+
+echo "Final working directory: $(pwd)"
+ls -la "${WORK_ROOT}" 2>/dev/null || echo "Cannot list work directory"
 
 # Build args
 ARGS="--ServerApp.ip=0.0.0.0 --ServerApp.root_dir=${WORK_ROOT}"
@@ -100,39 +92,46 @@ fi
 TARGET_NOTEBOOK_PATH=""
 DEFAULT_URL="/lab"
 
-# Determine base path for repo/notebooks
+# Determine base path for repo/notebooks (relative to WORK_ROOT)
 BASE_PATH="${WORK_ROOT}"
 [ -n "${GITHUB_REPO}" ] && BASE_PATH="${WORK_ROOT}/repo"
 
-echo "Searching for notebook in base path: ${BASE_PATH}"
+echo "Searching for notebook in: ${BASE_PATH}"
+
 if [ -n "${AUTO_NOTEBOOK}" ]; then
     echo "AUTO_NOTEBOOK is set to: ${AUTO_NOTEBOOK}"
-    if [[ "${AUTO_NOTEBOOK}" = /* ]]; then
-        CANDIDATE_PATH="${AUTO_NOTEBOOK}"
+    
+    # Extract just filename if it's a path
+    NOTEBOOK_FILENAME=$(basename "${AUTO_NOTEBOOK}")
+    
+    # Look in WORK_ROOT for the file
+    if [ -f "${WORK_ROOT}/${NOTEBOOK_FILENAME}" ]; then
+        TARGET_NOTEBOOK_PATH="${WORK_ROOT}/${NOTEBOOK_FILENAME}"
+        echo "SUCCESS: Found notebook at ${TARGET_NOTEBOOK_PATH}"
+    elif [ -f "${WORK_ROOT}/repo/${NOTEBOOK_FILENAME}" ]; then
+        TARGET_NOTEBOOK_PATH="${WORK_ROOT}/repo/${NOTEBOOK_FILENAME}"
+        echo "SUCCESS: Found notebook in repo at ${TARGET_NOTEBOOK_PATH}"
     else
-        CANDIDATE_PATH="${BASE_PATH}/${AUTO_NOTEBOOK}"
+        echo "WARNING: Notebook ${NOTEBOOK_FILENAME} not found in ${WORK_ROOT}"
     fi
 elif [ -n "${AUTO_NOTEBOOK_GLOB}" ]; then
     echo "AUTO_NOTEBOOK_GLOB is set to: ${AUTO_NOTEBOOK_GLOB}"
     # Find first match by filename under BASE_PATH
-    CANDIDATE_PATH=$(find "${BASE_PATH}" -type f -name "${AUTO_NOTEBOOK_GLOB}" 2>/dev/null | head -n 1 || true)
+    TARGET_NOTEBOOK_PATH=$(find "${BASE_PATH}" -type f -name "${AUTO_NOTEBOOK_GLOB}" 2>/dev/null | head -n 1 || true)
+    [ -n "${TARGET_NOTEBOOK_PATH}" ] && echo "SUCCESS: Found notebook at ${TARGET_NOTEBOOK_PATH}"
 fi
 
-if [ -n "${CANDIDATE_PATH}" ] && [ -f "${CANDIDATE_PATH}" ]; then
-    TARGET_NOTEBOOK_PATH="${CANDIDATE_PATH}"
+# Set default URL based on what we found
+if [ -n "${TARGET_NOTEBOOK_PATH}" ] && [ -f "${TARGET_NOTEBOOK_PATH}" ]; then
     # Compute path relative to WORK_ROOT for default_url
     REL_PATH="${TARGET_NOTEBOOK_PATH#${WORK_ROOT}/}"
-    echo "SUCCESS: Found notebook to open at ${TARGET_NOTEBOOK_PATH}"
     DEFAULT_URL="/lab/tree/${REL_PATH}?reset"
+    echo "Will open notebook: ${REL_PATH}"
+elif [ -d "${WORK_ROOT}/repo" ]; then
+    DEFAULT_URL="/lab/tree/repo"
+    echo "Will open repo directory"
 else
-    # Fall back to opening the repo tree if present
-    if [ -d "${WORK_ROOT}/repo" ]; then
-        DEFAULT_URL="/lab/tree/repo"
-        echo "INFO: No specific notebook found to open, defaulting to repo root."
-    fi
-    if [ -n "${CANDIDATE_PATH}" ]; then
-        echo "WARNING: Notebook specified by AUTO_NOTEBOOK or AUTO_NOTEBOOK_GLOB not found at expected path: ${CANDIDATE_PATH}"
-    fi
+    echo "Will open default lab view"
 fi
 
 # Always pass a default URL for predictable startup
@@ -192,4 +191,5 @@ if [ -n "${TARGET_NOTEBOOK_PATH}" ]; then
     exec start-notebook.sh $ARGS "${TARGET_NOTEBOOK_PATH}"
 else
     exec start-notebook.sh $ARGS
+fi
 fi
