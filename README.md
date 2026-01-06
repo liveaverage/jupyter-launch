@@ -15,8 +15,9 @@
 Environment variables:
 
 - `GITHUB_REPO`: Optional Git repo to clone into `/home/jovyan/work/repo`.
+- `REPO_SUBDIR`: Optional subdirectory within cloned repo to use as working directory (e.g., `notebooks` or `examples/quickstart`). Affects both the default landing page and `AUTO_NOTEBOOK_GLOB` search scope.
 - `AUTO_NOTEBOOK`: Optional path (relative to repo root or absolute) of a notebook to auto-open.
-- `AUTO_NOTEBOOK_GLOB`: Optional glob (e.g., `*.ipynb`) to pick the first matching notebook.
+- `AUTO_NOTEBOOK_GLOB`: Optional glob (e.g., `*.ipynb`) to pick the first matching notebook. When `REPO_SUBDIR` is set, searches within that subdirectory.
 - `JUPYTER_TOKEN`: If empty, token auth is disabled. If set, will be used as login token.
 - `KERNEL_GATEWAY`: If set to `1`, start `jupyter kernelgateway` (headless kernel mode) instead of JupyterLab.
 - `KERNEL_GATEWAY_PORT`: Port for kernel gateway (default `9999`).
@@ -106,6 +107,12 @@ docker run --gpus all -p 8888:8888 \
 docker run --gpus all -p 8888:8888 \
   -e GITHUB_REPO=https://github.com/brevdev/notebooks.git \
   -e AUTO_NOTEBOOK=nemo-reranker.ipynb \
+  ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
+
+# Launch into a subdirectory of the cloned repo
+docker run --gpus all -p 8888:8888 \
+  -e GITHUB_REPO=https://github.com/org/repo.git \
+  -e REPO_SUBDIR=notebooks/getting-started \
   ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
 
 # Launch with notebook from URL (standalone Docker pattern)

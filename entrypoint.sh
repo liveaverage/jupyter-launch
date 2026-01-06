@@ -81,6 +81,13 @@ ls -la "${WORK_ROOT}" 2>/dev/null || echo "Cannot list work directory"
 
 # Build args
 ARGS="--ServerApp.ip=0.0.0.0 --ServerApp.root_dir=${WORK_ROOT}"
+
+# Support running under a subpath (e.g., /jupyter) for reverse proxy setups
+if [ -n "${JUPYTER_BASE_URL}" ]; then
+    ARGS="${ARGS} --ServerApp.base_url=${JUPYTER_BASE_URL}"
+    echo "JUPYTER_BASE_URL is set to: ${JUPYTER_BASE_URL}"
+fi
+
 if [ -z "${JUPYTER_TOKEN}" ]; then
     ARGS="${ARGS} --IdentityProvider.token=''"
     echo "JUPYTER_TOKEN is unset. Disabling token authentication."
@@ -93,8 +100,17 @@ TARGET_NOTEBOOK_PATH=""
 DEFAULT_URL="/lab"
 
 # Determine base path for repo/notebooks (relative to WORK_ROOT)
+# REPO_SUBDIR: optional subdir within cloned repo (e.g., "notebooks" or "examples/getting-started")
 BASE_PATH="${WORK_ROOT}"
-[ -n "${GITHUB_REPO}" ] && BASE_PATH="${WORK_ROOT}/repo"
+if [ -n "${GITHUB_REPO}" ]; then
+    BASE_PATH="${WORK_ROOT}/repo"
+    if [ -n "${REPO_SUBDIR}" ]; then
+        # Strip leading/trailing slashes for consistency
+        REPO_SUBDIR=$(echo "${REPO_SUBDIR}" | sed 's:^/*::;s:/*$::')
+        BASE_PATH="${WORK_ROOT}/repo/${REPO_SUBDIR}"
+        echo "REPO_SUBDIR set: searching for notebooks in ${BASE_PATH}"
+    fi
+fi
 
 echo "Searching for notebook in: ${BASE_PATH}"
 
@@ -128,8 +144,13 @@ if [ -n "${TARGET_NOTEBOOK_PATH}" ] && [ -f "${TARGET_NOTEBOOK_PATH}" ]; then
     DEFAULT_URL="/lab/tree/${REL_PATH}?reset"
     echo "Will open notebook: ${REL_PATH}"
 elif [ -d "${WORK_ROOT}/repo" ]; then
-    DEFAULT_URL="/lab/tree/repo"
-    echo "Will open repo directory"
+    if [ -n "${REPO_SUBDIR}" ] && [ -d "${WORK_ROOT}/repo/${REPO_SUBDIR}" ]; then
+        DEFAULT_URL="/lab/tree/repo/${REPO_SUBDIR}"
+        echo "Will open repo subdirectory: ${REPO_SUBDIR}"
+    else
+        DEFAULT_URL="/lab/tree/repo"
+        echo "Will open repo directory"
+    fi
 else
     echo "Will open default lab view"
 fi
@@ -191,5 +212,4 @@ if [ -n "${TARGET_NOTEBOOK_PATH}" ]; then
     exec start-notebook.sh $ARGS "${TARGET_NOTEBOOK_PATH}"
 else
     exec start-notebook.sh $ARGS
-fi
 fi
