@@ -4,7 +4,7 @@ USER root
 
 # Install packages
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends git && \
+    apt-get install -y --no-install-recommends git socat && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
