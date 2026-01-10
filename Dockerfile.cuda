@@ -62,8 +62,8 @@ RUN if ! getent group ${NB_GID} > /dev/null 2>&1; then \
     find ${HOME} -type d -exec chmod g+s {} \;
 
 # Install JupyterLab and core extensions
-# Set Node.js options for build process (increase memory limit)
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+# Set Node.js options for build process (reduce memory to save disk space)
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
     python3 -m pip install --no-cache-dir \
@@ -83,12 +83,17 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
         "rich>=13.7.1" \
         pillow \
         "nemo-microservices[data-designer]" && \
+    # Clean pip cache to free disk space
+    rm -rf /root/.cache/pip && \
     # Build JupyterLab to integrate extensions (fixes 404s on remoteEntry.js files)
     # Use --dev-build for faster builds, skip minimize to avoid memory issues
     echo "Attempting JupyterLab build..." && \
     (jupyter lab build --dev-build=True --minimize=False 2>&1 || \
     echo "WARNING: JupyterLab build failed - extensions installed but may show 404 warnings") && \
-    echo "JupyterLab build step completed"
+    echo "JupyterLab build step completed" && \
+    # Clean npm cache and temp files to free ~500MB disk space
+    npm cache clean --force 2>/dev/null || true && \
+    rm -rf /tmp/* /root/.npm /root/.node-gyp 2>/dev/null || true
 
 # Copy all assets
 COPY assets/ /opt/nvidia-assets/
