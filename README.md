@@ -2,6 +2,22 @@
 
 ## NVIDIA-branded JupyterLab with GPU dashboards and remote kernel support
 
+### Image Variants
+
+**CPU-only (lightweight, ~2GB):**
+- Base: `jupyter/base-notebook:latest` 
+- No CUDA, no JupyterLab build step
+- Extensions load dynamically
+- Tags: `latest`, `cpu`, `cpu-latest`
+- Use case: Development, testing, CPU workloads
+
+**CUDA 12.1 (GPU-enabled, ~6GB):**
+- Base: `nvidia/cuda:12.1.0-runtime-ubuntu22.04`
+- Includes Node.js 20.x and built extensions
+- Full GPU support with dashboards
+- Tags: `cuda-12.1`, `cuda-12.1-latest`, `cuda-latest`
+- Use case: GPU workloads, ML/AI development
+
 ### Features
 - NVIDIA-themed dark mode with green accent colors (#76B900)
 - Automatic notebook opening from cloned repositories
@@ -9,10 +25,32 @@
 - Interactive guided tours
 - Remote kernel gateway support
 - Disabled update/news notifications
-- **Multi-CUDA support**: Pre-built images for CUDA 11.8 and 12.1
+- **Multi-CUDA support**: Pre-built images for CUDA 12.1
+- **CPU-only option**: Lightweight (~2GB) image for non-GPU workloads
+- **NeMo Data Designer**: Includes tools for data curation (datasets, langchain, unstructured, nemo-microservices)
 - **OpenShift compatible**: Works with arbitrary UIDs (uses aggressive 777 permissions for guaranteed compatibility)
 
-Environment variables:
+### Quick Start
+
+**CPU-only (no GPU required):**
+```bash
+docker run --rm -p 8888:8888 ghcr.io/[owner]/pyrrhus-jupyter:latest
+```
+
+**With GPU support (CUDA 12.1):**
+```bash
+docker run --rm --gpus all -p 8888:8888 ghcr.io/[owner]/pyrrhus-jupyter:cuda-latest
+```
+
+**With auto-cloned repository:**
+```bash
+docker run --rm -p 8888:8888 \
+  -e GITHUB_REPO=https://github.com/user/repo \
+  -e AUTO_NOTEBOOK_GLOB="*.ipynb" \
+  ghcr.io/[owner]/pyrrhus-jupyter:latest
+```
+
+### Environment Variables
 
 - `GITHUB_REPO`: Optional Git repo to clone into `/home/jovyan/work/repo`.
 - `REPO_SUBDIR`: Optional subdirectory within cloned repo to use as working directory (e.g., `notebooks` or `examples/quickstart`). Affects both the default landing page and `AUTO_NOTEBOOK_GLOB` search scope.

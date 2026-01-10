@@ -91,6 +91,9 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
     (jupyter lab build --dev-build=True --minimize=False 2>&1 || \
     echo "WARNING: JupyterLab build failed - extensions installed but may show 404 warnings") && \
     echo "JupyterLab build step completed" && \
+    # Clean build artifacts to reduce image size
+    rm -rf /usr/local/share/jupyter/lab/staging && \
+    rm -rf /root/.cache /root/.npm /tmp/* && \
     # Clean npm cache and temp files to free ~500MB disk space
     npm cache clean --force 2>/dev/null || true && \
     rm -rf /tmp/* /root/.npm /root/.node-gyp 2>/dev/null || true
@@ -129,10 +132,6 @@ RUN cp /opt/nvidia-assets/themes.jupyterlab-settings \
 COPY assets/apply-branding.sh /opt/nvidia-assets/apply-branding.sh
 RUN chmod +x /opt/nvidia-assets/apply-branding.sh && \
     /opt/nvidia-assets/apply-branding.sh
-
-# Disable default tour extensions
-RUN jupyter labextension disable "jupyterlab-tour:notebook-tours" 2>/dev/null || true && \
-    jupyter labextension disable "jupyterlab-tour:default-tours" 2>/dev/null || true
 
 # Final AGGRESSIVE OpenShift permissions (BUILD-TIME ONLY - runtime chmod fails)
 # Strategy: Make EVERYTHING maximally permissive - just make it work

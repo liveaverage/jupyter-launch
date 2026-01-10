@@ -1,4 +1,4 @@
-name: Build and Push CUDA Images
+name: Build and Push Images
 
 # Trigger on push to main, tags, or manual dispatch
 on:
@@ -12,19 +12,107 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      cuda_versions:
-        description: 'CUDA versions to build (comma-separated, e.g., "11.8,12.1,12.4")'
+      build_type:
+        description: 'Build type: cuda, cpu, or both'
         required: false
-        default: '11.8,12.1,12.4'
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - cuda
+          - cpu
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/pyrrhus-jupyter
 
 jobs:
+  build-cpu:
+    name: Build CPU Image
+    runs-on: ubuntu-latest
+    if: github.event.inputs.build_type != 'cuda'
+    permissions:
+      contents: read
+      packages: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Free up disk space
+        run: |
+          echo "=== Initial disk usage ==="
+          df -h
+          echo "=== Removing unnecessary packages ==="
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          echo "=== Final disk usage ==="
+          df -h
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=cpu
+            type=raw,value=cpu-latest
+            type=raw,value=cpu-{{sha}}
+            type=semver,pattern={{version}}-cpu
+            type=semver,pattern={{major}}.{{minor}}-cpu
+          labels: |
+            org.opencontainers.image.title=Pyrrhus JupyterLab CPU
+            org.opencontainers.image.description=Lightweight CPU-only JupyterLab with NeMo Data Designer
+      
+      - name: Build and push CPU image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=cpu
+          cache-to: type=gha,mode=max,scope=cpu
+          platforms: linux/amd64
+          
+      - name: Generate image summary
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "### 🐳 CPU Image Built Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Type:** CPU-only (lightweight)" >> $GITHUB_STEP_SUMMARY
+          echo "**Size:** ~2GB (vs ~6GB for CUDA)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Pull command:**" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cpu" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Run command:**" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker run --rm -p 8888:8888 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cpu" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
   build-matrix:
     name: Build CUDA ${{ matrix.cuda_version }}
     runs-on: ubuntu-latest
+    if: github.event.inputs.build_type != 'cpu'
     permissions:
       contents: read
       packages: write
@@ -107,10 +195,11 @@ jobs:
       - name: Generate image summary
         if: github.event_name != 'pull_request'
         run: |
-          echo "### 🐳 Image Built Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "### 🐳 CUDA Image Built Successfully" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**CUDA Version:** ${{ matrix.cuda_version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Ubuntu Version:** ${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Size:** ~6GB" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Pull command:**" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
@@ -123,13 +212,17 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   tag-latest:
-    name: Tag Latest Image
-    needs: build-matrix
+    name: Tag Latest Images
+    needs: [build-cpu, build-matrix]
     runs-on: ubuntu-latest
+    if: |
+      always() && 
+      github.event_name != 'pull_request' && 
+      github.ref == 'refs/heads/main' &&
+      (needs.build-cpu.result == 'success' || needs.build-matrix.result == 'success')
     permissions:
       contents: read
       packages: write
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     
     steps:
       - name: Log in to GitHub Container Registry
@@ -139,24 +232,41 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Pull and re-tag latest CUDA version as 'latest'
+      - name: Pull and re-tag latest images
         run: |
-          # Pull the latest CUDA version (12.1)
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cuda-12.1
+          # Tag CPU as 'latest' (smallest, most compatible)
+          if docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cpu 2>/dev/null; then
+            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cpu \
+                       ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            echo "Tagged CPU image as 'latest'"
+          fi
           
-          # Tag as 'latest'
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cuda-12.1 \
-                     ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          
-          # Push 'latest' tag
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          # Also tag CUDA 12.1 as 'cuda-latest' if it exists
+          if docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cuda-12.1 2>/dev/null; then
+            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cuda-12.1 \
+                       ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cuda-latest
+            docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cuda-latest
+            echo "Tagged CUDA 12.1 as 'cuda-latest'"
+          fi
           
       - name: Create summary
         run: |
           echo "### ✅ All Images Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Available tags:" >> $GITHUB_STEP_SUMMARY
-          echo "- \`cuda-12.1\`, \`cuda-12.1-latest\`, \`latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **CPU (default):** \`latest\`, \`cpu\`, \`cpu-latest\` (~2GB)" >> $GITHUB_STEP_SUMMARY
+          echo "- **CUDA 12.1:** \`cuda-12.1\`, \`cuda-12.1-latest\`, \`cuda-latest\` (~6GB)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Quick Start (CPU):**" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker run --rm -p 8888:8888 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Quick Start (GPU):**" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker run --rm --gpus all -p 8888:8888 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cuda-latest" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "View packages at: https://github.com/${{ github.repository_owner }}?tab=packages" >> $GITHUB_STEP_SUMMARY
 
