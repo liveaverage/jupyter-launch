@@ -32,12 +32,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # CUDA versions to build
-        cuda_version: ['11.8', '12.1']
+        # CUDA versions to build (v12 only)
+        cuda_version: ['12.1']
         include:
           # Map CUDA version to Ubuntu version
-          - cuda_version: '11.8'
-            ubuntu_version: '22.04'
           - cuda_version: '12.1'
             ubuntu_version: '22.04'
     
@@ -158,7 +156,6 @@ jobs:
           echo "### ✅ All Images Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Available tags:" >> $GITHUB_STEP_SUMMARY
-          echo "- \`cuda-11.8\`, \`cuda-11.8-latest\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`cuda-12.1\`, \`cuda-12.1-latest\`, \`latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "View packages at: https://github.com/${{ github.repository_owner }}?tab=packages" >> $GITHUB_STEP_SUMMARY
