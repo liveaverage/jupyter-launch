@@ -71,7 +71,15 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
         jupyterlab-nvdashboard \
         nvidia-ml-py3 \
         jupyterlab-tour \
-        jupyter_kernel_gateway && \
+        jupyter_kernel_gateway \
+        datasets \
+        "pydantic>=2.9.2" \
+        langchain==0.3.17 \
+        "unstructured[pdf]" \
+        pandas==2.2.3 \
+        "rich>=13.7.1" \
+        pillow \
+        "nemo-microservices[data-designer]" && \
     # Build JupyterLab to integrate extensions (fixes 404s on remoteEntry.js files)
     # Use --dev-build for faster builds, skip minimize to avoid memory issues
     echo "Attempting JupyterLab build..." && \
