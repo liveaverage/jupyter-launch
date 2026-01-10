@@ -12,6 +12,7 @@ FROM nvidia/cuda:${CUDA_VERSION}.0-runtime-ubuntu${UBUNTU_VERSION} AS base
 USER root
 
 # Install system dependencies and Python
+# Note: Install Node.js 20.x from NodeSource (JupyterLab 4.5+ requires >=20.0.0)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3 \
@@ -23,8 +24,10 @@ RUN apt-get update && \
         curl \
         ca-certificates \
         build-essential \
-        nodejs \
-        npm && \
+        gnupg && \
+    # Install Node.js 20.x from NodeSource
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

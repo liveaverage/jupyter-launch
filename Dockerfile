@@ -12,7 +12,15 @@ RUN pip install --no-cache-dir \
     jupyterlab-nvdashboard \
     nvidia-ml-py3 \
     jupyterlab-tour \
-    jupyter_kernel_gateway && \
+    jupyter_kernel_gateway \
+    datasets \
+    "pydantic>=2.9.2" \
+    langchain==0.3.17 \
+    "unstructured[pdf]" \
+    pandas==2.2.3 \
+    "rich>=13.7.1" \
+    pillow \
+    "nemo-microservices[data-designer]" && \
     fix-permissions /opt/conda /home/jovyan
 
 # Copy all assets
