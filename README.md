@@ -2,14 +2,25 @@
 
 ## NVIDIA-branded JupyterLab with GPU dashboards and remote kernel support
 
+
 ### Image Variants
 
-**CPU-only (lightweight, ~2GB):**
-- Base: `jupyter/base-notebook:latest` 
+**Slim (ultra-lightweight, ~1.5-2GB):**
+- Base: `python:3.12-slim`
+- Multi-stage build for minimal footprint
+- Python 3.12
+- No CUDA, extensions load dynamically
+- Tags: `latest`, `slim`, `slim-latest`
+- Use case: Minimal resource environments, fast deployment
+- **Size optimization**: Multi-stage build copies only runtime artifacts, aggressive cleanup. `unstructured` without `[pdf]` extra (saves ~500MB).
+
+**CPU-only (lightweight, ~2.5-3GB):**
+- Base: `jupyter/base-notebook:latest`
 - No CUDA, no JupyterLab build step
 - Extensions load dynamically
-- Tags: `latest`, `cpu`, `cpu-latest`
-- Use case: Development, testing, CPU workloads
+- Tags: `cpu`, `cpu-latest`
+- Use case: Development, testing, CPU workloads when compatibility with jupyter/base-notebook is desired
+- **Size optimization**: `unstructured` installed without `[pdf]` extra (saves ~500MB). For PDF parsing, manually install: `apt-get install poppler-utils tesseract-ocr` in derived image.
 
 **CUDA 12.1 (GPU-enabled, ~6GB):**
 - Base: `nvidia/cuda:12.1.0-runtime-ubuntu22.04`
@@ -26,15 +37,21 @@
 - Remote kernel gateway support
 - Disabled update/news notifications
 - **Multi-CUDA support**: Pre-built images for CUDA 12.1
-- **CPU-only option**: Lightweight (~2GB) image for non-GPU workloads
+- **Slim option**: Ultra-lightweight (~1.5-2GB) multi-stage image with Python 3.12 for resource-constrained environments
+- **CPU-only option**: Lightweight (~2.5-3GB) image for non-GPU workloads
 - **NeMo Data Designer**: Includes tools for data curation (datasets, langchain, unstructured, nemo-microservices)
 - **OpenShift compatible**: Works with arbitrary UIDs (uses aggressive 777 permissions for guaranteed compatibility)
 
 ### Quick Start
 
-**CPU-only (no GPU required):**
+**Slim (smallest, default):**
 ```bash
 docker run --rm -p 8888:8888 ghcr.io/[owner]/pyrrhus-jupyter:latest
+```
+
+**CPU-only (jupyter/base-notebook):**
+```bash
+docker run --rm -p 8888:8888 ghcr.io/[owner]/pyrrhus-jupyter:cpu
 ```
 
 **With GPU support (CUDA 12.1):**
@@ -108,6 +125,19 @@ docker pull ghcr.io/[your-org]/pyrrhus-jupyter:cuda-12.1
 ```
 
 ### Building Locally
+
+Build the slim variant (recommended):
+
+```bash
+cd lp-pyrrhus-jupyter-launch
+./build-slim.sh
+```
+
+Build CPU variant:
+
+```bash
+docker build -f Dockerfile -t pyrrhus-jupyter:cpu .
+```
 
 Build all CUDA variants:
 
@@ -196,3 +226,23 @@ Images are tagged with:
 - `cuda-{version}-{git-sha}` - Specific commit
 - `latest` - Latest CUDA version (12.1)
 
+### Troubleshooting
+
+**PDF parsing not working in slim/CPU images:**
+
+Both the slim and CPU images omit `unstructured[pdf]` dependencies to save ~500MB. If you need PDF processing:
+
+```dockerfile
+FROM ghcr.io/[owner]/pyrrhus-jupyter:slim  # or :cpu
+USER root
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        poppler-utils tesseract-ocr && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+USER ${NB_USER}
+```
+
+Or install at runtime:
+```bash
+docker exec -u root <container-id> apt-get update && apt-get install -y poppler-utils tesseract-ocr
+```

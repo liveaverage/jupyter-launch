@@ -1,0 +1,130 @@
+# Purpose: Ultra-slim CPU-only JupyterLab with NeMo Data Designer tools
+# Inputs: None (uses python:3.12-slim)
+# Outputs: Minimal (~1.5-2GB) CPU-optimized image via multi-stage build
+# Assumptions: No GPU required, runs on any Docker host
+# Notes: Multi-stage build copies only runtime artifacts, aggressive size optimization
+# Tradeoffs: No PDF parsing by default (unstructured without [pdf] extra)
+
+# Stage 1: Builder - Install all packages with build dependencies
+FROM python:3.12-slim AS builder
+
+# Install minimal build dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git \
+        build-essential \
+        curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create a virtual environment to isolate dependencies
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install Python packages in stages (same as optimized Dockerfile)
+# Stage 1: Core Jupyter + extensions
+RUN pip install --no-cache-dir \
+    jupyterlab==4.0.9 \
+    notebook==7.0.6 \
+    jupyterlab-nvdashboard \
+    nvidia-ml-py3 \
+    jupyterlab-tour \
+    jupyter_kernel_gateway
+
+# Stage 2: Data processing (minimal extras)
+RUN pip install --no-cache-dir \
+    "pydantic>=2.9.2" \
+    langchain==0.3.17 \
+    unstructured \
+    pandas==2.2.3 \
+    "rich>=13.7.1" \
+    pillow
+
+# Stage 3: NeMo and datasets (preserve all functionality)
+RUN pip install --no-cache-dir \
+    datasets \
+    "nemo-microservices[data-designer]"
+
+# Aggressive cleanup in builder stage
+RUN find /opt/venv -follow -type f -name '*.a' -delete && \
+    find /opt/venv -follow -type f -name '*.pyc' -delete && \
+    find /opt/venv -follow -type f -name '*.js.map' -delete && \
+    find /opt/venv/lib/python*/site-packages/bokeh/server/static -follow -type f -name '*.js' ! -name '*.min.js' -delete 2>/dev/null || true
+
+# Stage 2: Runtime - Minimal final image
+FROM python:3.12-slim
+
+# Install only runtime dependencies (no build tools)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git \
+        socat \
+        tini \
+        ca-certificates && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Create jovyan user (compatible with jupyter/base-notebook patterns)
+ARG NB_USER=jovyan
+ARG NB_UID=1000
+ARG NB_GID=100
+
+RUN useradd -l -m -s /bin/bash -N -u ${NB_UID} ${NB_USER} && \
+    mkdir -p /opt/conda && \
+    chown -R ${NB_USER}:${NB_GID} /opt/conda
+
+# Copy Python environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Set up PATH to use venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    JUPYTER_ENABLE_LAB=yes \
+    JUPYTER_PORT=8888
+
+# Copy assets and entrypoint
+COPY assets/ /opt/nvidia-assets/
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Create necessary directories
+RUN mkdir -p /home/${NB_USER}/.jupyter/lab/user-settings/@jupyterlab/apputils-extension && \
+    mkdir -p /opt/venv/share/jupyter/lab/settings && \
+    mkdir -p /etc/jupyter
+
+# Copy configuration files
+RUN cp /opt/nvidia-assets/themes.jupyterlab-settings /home/${NB_USER}/.jupyter/lab/user-settings/@jupyterlab/apputils-extension/themes.jupyterlab-settings && \
+    cp /opt/nvidia-assets/notification.jupyterlab-settings /home/${NB_USER}/.jupyter/lab/user-settings/@jupyterlab/apputils-extension/notification.jupyterlab-settings && \
+    cp /opt/nvidia-assets/overrides.json /opt/venv/share/jupyter/lab/settings/overrides.json && \
+    cp /opt/nvidia-assets/jupyter_server_config.py /etc/jupyter/jupyter_server_config.py
+
+# Apply NVIDIA branding
+COPY assets/apply-branding.sh /opt/nvidia-assets/apply-branding.sh
+RUN chmod +x /opt/nvidia-assets/apply-branding.sh && \
+    /opt/nvidia-assets/apply-branding.sh
+
+# Configure JupyterLab Tour and application title
+RUN mkdir -p /home/${NB_USER}/.jupyter/lab/user-settings/jupyterlab-tour && \
+    cp /opt/nvidia-assets/user-tours.jupyterlab-settings /home/${NB_USER}/.jupyter/lab/user-settings/jupyterlab-tour/user-tours.jupyterlab-settings && \
+    mkdir -p /home/${NB_USER}/.jupyter/lab/user-settings/@jupyterlab/application-extension && \
+    echo '{"documentTitle": "Pyrrhus Lab"}' > /home/${NB_USER}/.jupyter/lab/user-settings/@jupyterlab/application-extension/page-config.jupyterlab-settings && \
+    mkdir -p /etc/jupyter/labconfig && \
+    cp /opt/nvidia-assets/page_config.json /etc/jupyter/labconfig/page_config.json
+
+# OpenShift-compatible permissions (minimal footprint)
+RUN chown -R ${NB_USER}:${NB_GID} /home/${NB_USER} /opt/venv && \
+    chgrp -R 0 /home/${NB_USER} /opt/venv && \
+    chmod -R g+rwX /home/${NB_USER} /opt/venv && \
+    find /home/${NB_USER} -type d -exec chmod g+s {} \; && \
+    chmod -R 777 /home/${NB_USER}/.jupyter
+
+WORKDIR /home/${NB_USER}/work
+USER ${NB_USER}
+
+# Labels for slim image
+LABEL org.opencontainers.image.title="Pyrrhus JupyterLab Slim" \
+      org.opencontainers.image.description="Ultra-lightweight CPU-only JupyterLab with NeMo Data Designer (Python 3.12)" \
+      org.opencontainers.image.vendor="Pyrrhus" \
+      python.version="3.12"
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--ServerApp.token=''", "--ServerApp.password=''"]

@@ -1,36 +1,53 @@
 # Purpose: CPU-only lightweight JupyterLab with NeMo Data Designer tools
 # Inputs: None (uses latest jupyter/base-notebook)
-# Outputs: Small (~2GB) CPU-optimized image
+# Outputs: Smaller (<3GB) CPU-optimized image
 # Assumptions: No GPU required, runs on any Docker host
 # Notes: No CUDA, no JupyterLab build, extensions load dynamically
+# Optimizations: Minimal unstructured deps, aggressive cleanup
 
 FROM jupyter/base-notebook:latest
 
 USER root
 
-# Install minimal system dependencies
+# Install minimal system dependencies (combined layer)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends git socat && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Install Python packages (no-cache to keep image small)
+# Install Python packages in stages to minimize transitive deps
+# Stage 1: Core Jupyter extensions (lightweight)
 RUN pip install --no-cache-dir \
     jupyterlab-nvdashboard \
     nvidia-ml-py3 \
     jupyterlab-tour \
-    jupyter_kernel_gateway \
-    datasets \
+    jupyter_kernel_gateway && \
+    rm -rf /home/jovyan/.cache/pip /tmp/*
+
+# Stage 2: Data processing (heavy - use minimal extras)
+# Note: unstructured without [pdf] saves ~500MB (no poppler/tesseract/opencv)
+# If PDF parsing needed, install manually: apt-get install poppler-utils tesseract-ocr
+RUN pip install --no-cache-dir \
     "pydantic>=2.9.2" \
     langchain==0.3.17 \
-    "unstructured[pdf]" \
+    unstructured \
     pandas==2.2.3 \
     "rich>=13.7.1" \
-    pillow \
+    pillow && \
+    rm -rf /home/jovyan/.cache/pip /tmp/*
+
+# Stage 3: NeMo and datasets (largest deps - installed last)
+RUN pip install --no-cache-dir \
+    datasets \
     "nemo-microservices[data-designer]" && \
     fix-permissions /opt/conda /home/jovyan && \
-    # Clean pip cache to reduce image size
-    rm -rf /home/jovyan/.cache/pip
+    rm -rf /home/jovyan/.cache/pip /tmp/* /root/.cache
+
+# Aggressive cleanup: Remove unnecessary files from conda/pip packages
+RUN find /opt/conda -follow -type f -name '*.a' -delete && \
+    find /opt/conda -follow -type f -name '*.pyc' -delete && \
+    find /opt/conda -follow -type f -name '*.js.map' -delete && \
+    find /opt/conda/lib/python*/site-packages/bokeh/server/static -follow -type f -name '*.js' ! -name '*.min.js' -delete 2>/dev/null || true
 
 # Copy all assets
 COPY assets/ /opt/nvidia-assets/

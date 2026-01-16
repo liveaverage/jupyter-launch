@@ -13,14 +13,15 @@ on:
   workflow_dispatch:
     inputs:
       build_type:
-        description: 'Build type: cuda, cpu, or both'
+        description: 'Build type: cuda, cpu, slim, or all'
         required: false
-        default: 'both'
+        default: 'all'
         type: choice
         options:
-          - both
+          - all
           - cuda
           - cpu
+          - slim
 
 env:
   REGISTRY: ghcr.io
@@ -30,7 +31,7 @@ jobs:
   build-cpu:
     name: Build CPU Image
     runs-on: ubuntu-latest
-    if: github.event.inputs.build_type != 'cuda'
+    if: github.event.inputs.build_type != 'cuda' && github.event.inputs.build_type != 'slim'
     permissions:
       contents: read
       packages: write
@@ -109,10 +110,94 @@ jobs:
           echo "docker run --rm -p 8888:8888 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cpu" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
+  build-slim:
+    name: Build Slim Image
+    runs-on: ubuntu-latest
+    if: github.event.inputs.build_type != 'cuda' && github.event.inputs.build_type != 'cpu'
+    permissions:
+      contents: read
+      packages: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Free up disk space
+        run: |
+          echo "=== Initial disk usage ==="
+          df -h
+          echo "=== Removing unnecessary packages ==="
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          echo "=== Final disk usage ==="
+          df -h
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=slim
+            type=raw,value=slim-latest
+            type=raw,value=slim-{{sha}}
+            type=semver,pattern={{version}}-slim
+            type=semver,pattern={{major}}.{{minor}}-slim
+          labels: |
+            org.opencontainers.image.title=Pyrrhus JupyterLab Slim
+            org.opencontainers.image.description=Ultra-lightweight CPU-only JupyterLab with NeMo Data Designer (Python 3.12)
+            python.version=3.12
+      
+      - name: Build and push slim image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.slim
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=slim
+          cache-to: type=gha,mode=max,scope=slim
+          platforms: linux/amd64
+          
+      - name: Generate image summary
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "### 🐳 Slim Image Built Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Type:** Slim CPU-only (ultra-lightweight)" >> $GITHUB_STEP_SUMMARY
+          echo "**Python Version:** 3.12" >> $GITHUB_STEP_SUMMARY
+          echo "**Size:** ~1.5-2GB (vs ~2.5-3GB for CPU, ~6GB for CUDA)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Pull command:**" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:slim" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Run command:**" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker run --rm -p 8888:8888 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:slim" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
   build-matrix:
     name: Build CUDA ${{ matrix.cuda_version }}
     runs-on: ubuntu-latest
-    if: github.event.inputs.build_type != 'cpu'
+    if: github.event.inputs.build_type != 'cpu' && github.event.inputs.build_type != 'slim'
     permissions:
       contents: read
       packages: write
@@ -213,13 +298,13 @@ jobs:
 
   tag-latest:
     name: Tag Latest Images
-    needs: [build-cpu, build-matrix]
+    needs: [build-cpu, build-slim, build-matrix]
     runs-on: ubuntu-latest
     if: |
       always() && 
       github.event_name != 'pull_request' && 
       github.ref == 'refs/heads/main' &&
-      (needs.build-cpu.result == 'success' || needs.build-matrix.result == 'success')
+      (needs.build-cpu.result == 'success' || needs.build-slim.result == 'success' || needs.build-matrix.result == 'success')
     permissions:
       contents: read
       packages: write
@@ -234,8 +319,14 @@ jobs:
           
       - name: Pull and re-tag latest images
         run: |
-          # Tag CPU as 'latest' (smallest, most compatible)
-          if docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cpu 2>/dev/null; then
+          # Tag slim as 'latest' (smallest, most compatible)
+          if docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:slim 2>/dev/null; then
+            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:slim \
+                       ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            echo "Tagged slim image as 'latest'"
+          # Fallback to CPU if slim not available
+          elif docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cpu 2>/dev/null; then
             docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cpu \
                        ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
@@ -255,10 +346,11 @@ jobs:
           echo "### ✅ All Images Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Available tags:" >> $GITHUB_STEP_SUMMARY
-          echo "- **CPU (default):** \`latest\`, \`cpu\`, \`cpu-latest\` (~2GB)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Slim (default):** \`latest\`, \`slim\`, \`slim-latest\` (~1.5-2GB, Python 3.12)" >> $GITHUB_STEP_SUMMARY
+          echo "- **CPU:** \`cpu\`, \`cpu-latest\` (~2.5-3GB)" >> $GITHUB_STEP_SUMMARY
           echo "- **CUDA 12.1:** \`cuda-12.1\`, \`cuda-12.1-latest\`, \`cuda-latest\` (~6GB)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Quick Start (CPU):**" >> $GITHUB_STEP_SUMMARY
+          echo "**Quick Start (Slim):**" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -p 8888:8888 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
