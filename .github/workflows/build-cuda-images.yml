@@ -13,15 +13,14 @@ on:
   workflow_dispatch:
     inputs:
       build_type:
-        description: 'Build type: cuda, cpu, slim, or all'
+        description: 'Build type: cuda, slim (default), or all'
         required: false
-        default: 'all'
+        default: 'slim'
         type: choice
         options:
-          - all
-          - cuda
-          - cpu
           - slim
+          - cuda
+          - all
 
 env:
   REGISTRY: ghcr.io
@@ -31,7 +30,7 @@ jobs:
   build-cpu:
     name: Build CPU Image
     runs-on: ubuntu-latest
-    if: github.event.inputs.build_type != 'cuda' && github.event.inputs.build_type != 'slim'
+    if: false  # Disabled - only building slim for now
     permissions:
       contents: read
       packages: write
@@ -113,7 +112,7 @@ jobs:
   build-slim:
     name: Build Slim Image
     runs-on: ubuntu-latest
-    if: github.event.inputs.build_type != 'cuda' && github.event.inputs.build_type != 'cpu'
+    if: github.event.inputs.build_type != 'cuda'  # Build slim by default (disabled cpu)
     permissions:
       contents: read
       packages: write
@@ -197,7 +196,7 @@ jobs:
   build-matrix:
     name: Build CUDA ${{ matrix.cuda_version }}
     runs-on: ubuntu-latest
-    if: github.event.inputs.build_type != 'cpu' && github.event.inputs.build_type != 'slim'
+    if: github.event.inputs.build_type == 'cuda' || github.event.inputs.build_type == 'all'  # Only on explicit request
     permissions:
       contents: read
       packages: write

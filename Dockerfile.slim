@@ -97,9 +97,12 @@ RUN cp /opt/nvidia-assets/themes.jupyterlab-settings /home/${NB_USER}/.jupyter/l
     cp /opt/nvidia-assets/overrides.json /opt/venv/share/jupyter/lab/settings/overrides.json && \
     cp /opt/nvidia-assets/jupyter_server_config.py /etc/jupyter/jupyter_server_config.py
 
-# Apply NVIDIA branding
+# Apply NVIDIA branding (search in venv location)
 COPY assets/apply-branding.sh /opt/nvidia-assets/apply-branding.sh
 RUN chmod +x /opt/nvidia-assets/apply-branding.sh && \
+    # Update script to search /opt/venv paths for slim build
+    sed -i 's|/usr/local/lib/python\*|/opt/venv/lib/python*|g' /opt/nvidia-assets/apply-branding.sh && \
+    sed -i 's|/usr/lib/python\*|/opt/venv/lib/python*|g' /opt/nvidia-assets/apply-branding.sh && \
     /opt/nvidia-assets/apply-branding.sh
 
 # Configure JupyterLab Tour and application title
