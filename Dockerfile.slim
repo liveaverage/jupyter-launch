@@ -86,6 +86,12 @@ COPY assets/ /opt/nvidia-assets/
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
+# Create start-notebook.sh wrapper for compatibility with entrypoint.sh
+# (slim build doesn't have jupyter/base-notebook's start-notebook.sh)
+RUN echo '#!/bin/bash' > /usr/local/bin/start-notebook.sh && \
+    echo 'exec jupyter lab "$@"' >> /usr/local/bin/start-notebook.sh && \
+    chmod +x /usr/local/bin/start-notebook.sh
+
 # Create necessary directories
 RUN mkdir -p /home/${NB_USER}/.jupyter/lab/user-settings/@jupyterlab/apputils-extension && \
     mkdir -p /opt/venv/share/jupyter/lab/settings && \
