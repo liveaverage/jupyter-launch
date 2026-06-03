@@ -88,6 +88,38 @@ sed -i 's|</head>|<!-- NVIDIA Branding Start -->\
 .jp-mod-selected {\
   background-color: rgba(118,185,0,0.15) !important;\
 }\
+.jp-FileBrowser .jp-DirListing-content,\
+.jp-FileBrowser .jp-DirListing-header,\
+.jp-FileBrowser .jp-BreadCrumbs,\
+.jp-FileBrowser .jp-BreadCrumbs-item {\
+  color: #E6E6E6 !important;\
+}\
+.jp-FileBrowser .jp-DirListing-item,\
+.jp-FileBrowser .jp-DirListing-itemText,\
+.jp-FileBrowser .jp-DirListing-itemModified,\
+.jp-FileBrowser .jp-DirListing-itemName {\
+  color: #D8D8D8 !important;\
+}\
+.jp-FileBrowser .jp-DirListing-item.jp-mod-selected,\
+.jp-FileBrowser .jp-DirListing-item.jp-mod-selected *,\
+.jp-FileBrowser .jp-DirListing-item.jp-mod-selected .jp-DirListing-itemText,\
+.jp-FileBrowser .jp-DirListing-item.jp-mod-selected .jp-DirListing-itemModified,\
+.jp-FileBrowser .jp-DirListing-item.jp-mod-selected .jp-DirListing-itemName {\
+  color: #FFFFFF !important;\
+}\
+.jp-FileBrowser .jp-DirListing-item:hover,\
+.jp-FileBrowser .jp-DirListing-item:hover *,\
+.jp-FileBrowser .jp-DirListing-item.jp-mod-running,\
+.jp-FileBrowser .jp-DirListing-item.jp-mod-running * {\
+  color: #F2F2F2 !important;\
+}\
+.jp-FileBrowser .jp-FilterBox input {\
+  color: #F2F2F2 !important;\
+}\
+.jp-FileBrowser .jp-FilterBox input::placeholder {\
+  color: #BDBDBD !important;\
+  opacity: 1 !important;\
+}\
 .lm-TabBar-tab.lm-mod-current {\
   border-top: 3px solid #76B900 !important;\
 }\
