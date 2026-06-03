@@ -1,4 +1,6 @@
 {
+  "appName": "NVIDIA Labs",
+  "faviconUrl": "static/favicon.ico",
   "disabledExtensions": {
     "jupyterlab-tour:notebook-tours": true,
     "jupyterlab-tour:default-tours": true
