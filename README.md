@@ -44,9 +44,19 @@
 
 ### Quick Start
 
+**Brev Launchable bootstrap (slim image with a sample notebook):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/liveaverage/jupyter-launch/main/bootstrap.sh | bash
+```
+
+Override the image or notebook when needed:
+```bash
+curl -fsSL https://raw.githubusercontent.com/liveaverage/jupyter-launch/main/bootstrap.sh | JUPYTER_IMAGE=ghcr.io/liveaverage/pyrrhus-jupyter:slim NOTEBOOK_URL=https://raw.githubusercontent.com/liveaverage/jupyter-launch/main/notebooks/sample-launch.ipynb bash
+```
+
 **Slim (smallest, default):**
 ```bash
-docker run --rm -p 8888:8888 ghcr.io/[owner]/pyrrhus-jupyter:latest
+docker run --rm -p 8888:8888 ghcr.io/liveaverage/pyrrhus-jupyter:slim
 ```
 
 **CPU-only (jupyter/base-notebook):**
