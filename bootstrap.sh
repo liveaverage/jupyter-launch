@@ -15,10 +15,13 @@ JUPYTER_TOKEN="${JUPYTER_TOKEN:-}"
 REPLACE_EXISTING="${REPLACE_EXISTING:-1}"
 ENABLE_GPU="${ENABLE_GPU:-0}"
 EXTRA_DOCKER_ARGS="${EXTRA_DOCKER_ARGS:-}"
+STAGE_NOTEBOOK="${STAGE_NOTEBOOK:-1}"
+NOTEBOOK_STAGING_DIR="${NOTEBOOK_STAGING_DIR:-/tmp/${JUPYTER_CONTAINER_NAME}}"
+SKIP_IMAGE_PULL="${SKIP_IMAGE_PULL:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 
 log() {
-  printf '[jupyter-launch] %s\n' "$*"
+  printf '[jupyter-launch] %s\n' "$*" >&2
 }
 
 require_docker() {
@@ -26,6 +29,31 @@ require_docker() {
     log "ERROR: docker is not installed or is not on PATH."
     exit 1
   fi
+}
+
+download_notebook() {
+  notebook_filename="$(basename "${AUTO_NOTEBOOK}")"
+  staged_notebook="${NOTEBOOK_STAGING_DIR}/${notebook_filename}"
+
+  if [ "${DRY_RUN}" = "1" ]; then
+    log "+ mkdir -p ${NOTEBOOK_STAGING_DIR}"
+    log "+ download ${NOTEBOOK_URL} -> ${staged_notebook}"
+    printf '%s\n' "${staged_notebook}"
+    return 0
+  fi
+
+  mkdir -p "${NOTEBOOK_STAGING_DIR}"
+
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "${staged_notebook}" "${NOTEBOOK_URL}"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "${staged_notebook}" "${NOTEBOOK_URL}"
+  else
+    log "ERROR: install curl or wget, or set STAGE_NOTEBOOK=0 to let the container fetch NOTEBOOK_URL."
+    exit 1
+  fi
+
+  printf '%s\n' "${staged_notebook}"
 }
 
 run() {
@@ -45,6 +73,12 @@ main() {
   log "Notebook target: ${AUTO_NOTEBOOK}"
   log "Host port: ${JUPYTER_PORT}"
 
+  staged_notebook=""
+  if [ "${STAGE_NOTEBOOK}" = "1" ]; then
+    staged_notebook="$(download_notebook)"
+    log "Staged notebook: ${staged_notebook}"
+  fi
+
   if [ "${DRY_RUN}" != "1" ] && docker ps -a --format '{{.Names}}' | grep -qx "${JUPYTER_CONTAINER_NAME}"; then
     if [ "${REPLACE_EXISTING}" = "1" ]; then
       run docker rm -f "${JUPYTER_CONTAINER_NAME}"
@@ -54,7 +88,11 @@ main() {
     fi
   fi
 
-  run docker pull "${JUPYTER_IMAGE}"
+  if [ "${SKIP_IMAGE_PULL}" = "1" ]; then
+    log "Skipping image pull for ${JUPYTER_IMAGE}"
+  else
+    run docker pull "${JUPYTER_IMAGE}"
+  fi
 
   docker_args=(
     run
@@ -65,6 +103,11 @@ main() {
     -e "AUTO_NOTEBOOK=${AUTO_NOTEBOOK}"
     -e "JUPYTER_TOKEN=${JUPYTER_TOKEN}"
   )
+
+  if [ -n "${staged_notebook}" ]; then
+    notebook_filename="$(basename "${AUTO_NOTEBOOK}")"
+    docker_args+=(-v "${staged_notebook}:/home/jovyan/work/${notebook_filename}:ro")
+  fi
 
   if [ "${ENABLE_GPU}" = "1" ]; then
     docker_args+=(--gpus all)

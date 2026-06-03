@@ -49,6 +49,10 @@
 curl -fsSL https://raw.githubusercontent.com/liveaverage/jupyter-launch/main/bootstrap.sh | bash
 ```
 
+The bootstrap downloads the selected notebook on the host and mounts it into
+the JupyterLab container at startup. The same notebook URL is also passed into
+the container for direct Docker users.
+
 Override the image or notebook when needed:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/liveaverage/jupyter-launch/main/bootstrap.sh | JUPYTER_IMAGE=ghcr.io/liveaverage/pyrrhus-jupyter:slim NOTEBOOK_URL=https://raw.githubusercontent.com/liveaverage/jupyter-launch/main/notebooks/sample-launch.ipynb bash

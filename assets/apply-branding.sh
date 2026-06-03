@@ -5,49 +5,58 @@ set -e
 echo "Applying NVIDIA branding..."
 
 ASSETS_DIR="/opt/nvidia-assets"
-LAB_STATIC_DIR=""
+LAB_STATIC_DIRS=""
 
-# Try multiple search paths for JupyterLab static directory
-# 1. Conda installation
-if [ -d "/opt/conda/share/jupyter/lab/static" ]; then
-    LAB_STATIC_DIR="/opt/conda/share/jupyter/lab/static"
-# 2. System Python installation (pip)
-elif [ -d "/usr/local/share/jupyter/lab/static" ]; then
-    LAB_STATIC_DIR="/usr/local/share/jupyter/lab/static"
-# 3. Alternative system locations
-elif [ -d "/usr/share/jupyter/lab/static" ]; then
-    LAB_STATIC_DIR="/usr/share/jupyter/lab/static"
-# 4. Search in Python site-packages
-else
-    LAB_STATIC_DIR=$(find /usr/local/lib/python*/site-packages/jupyterlab/static -type d 2>/dev/null | head -1)
-    if [ -z "$LAB_STATIC_DIR" ]; then
-        LAB_STATIC_DIR=$(find /usr/lib/python*/site-packages/jupyterlab/static -type d 2>/dev/null | head -1)
+add_static_dir() {
+    if [ -d "$1" ] && [ -f "$1/index.html" ] && ! printf '%s\n' "$LAB_STATIC_DIRS" | grep -qx "$1"; then
+        LAB_STATIC_DIRS="${LAB_STATIC_DIRS}${LAB_STATIC_DIRS:+
+}$1"
     fi
-fi
+}
 
-INDEX_HTML="${LAB_STATIC_DIR}/index.html"
+# Try multiple search paths for JupyterLab static directories.
+add_static_dir "/opt/conda/share/jupyter/lab/static"
+add_static_dir "/opt/venv/share/jupyter/lab/static"
+add_static_dir "/usr/local/share/jupyter/lab/static"
+add_static_dir "/usr/share/jupyter/lab/static"
 
-if [ -z "$LAB_STATIC_DIR" ] || [ ! -f "$INDEX_HTML" ]; then
+for candidate in \
+    $(find /opt/venv/lib/python*/site-packages/jupyterlab/static -type d 2>/dev/null || true) \
+    $(find /usr/local/lib/python*/site-packages/jupyterlab/static -type d 2>/dev/null || true) \
+    $(find /usr/lib/python*/site-packages/jupyterlab/static -type d 2>/dev/null || true); do
+    add_static_dir "$candidate"
+done
+
+if [ -z "$LAB_STATIC_DIRS" ]; then
     echo "ERROR: JupyterLab static directory or index.html not found."
     echo "Searched locations:"
     echo "  - /opt/conda/share/jupyter/lab/static"
+    echo "  - /opt/venv/share/jupyter/lab/static"
     echo "  - /usr/local/share/jupyter/lab/static"
     echo "  - /usr/share/jupyter/lab/static"
+    echo "  - /opt/venv/lib/python*/site-packages/jupyterlab/static"
     echo "  - /usr/local/lib/python*/site-packages/jupyterlab/static"
     echo "  - /usr/lib/python*/site-packages/jupyterlab/static"
     exit 1
 fi
-echo "Found JupyterLab static directory: $LAB_STATIC_DIR"
+echo "Found JupyterLab static directories:"
+printf '  - %s\n' $LAB_STATIC_DIRS
 
 # 1. Replace favicons
 echo "Updating favicon..."
 # Search in both conda and system Python locations
 find /opt/conda /usr/local /usr -name "favicon*.ico" -type f -exec cp -f "${ASSETS_DIR}/favicon.ico" {} \; 2>/dev/null || true
-# Ensure it exists in the main static directory
-cp -f "${ASSETS_DIR}/favicon.ico" "${LAB_STATIC_DIR}/favicon.ico" 2>/dev/null || true
+# Ensure it exists in each static directory
+for LAB_STATIC_DIR in $LAB_STATIC_DIRS; do
+    cp -f "${ASSETS_DIR}/favicon.ico" "${LAB_STATIC_DIR}/favicon.ico" 2>/dev/null || true
+done
 
 # 2. Inject NVIDIA branding CSS into index.html
 echo "Injecting NVIDIA styles..."
+
+for LAB_STATIC_DIR in $LAB_STATIC_DIRS; do
+INDEX_HTML="${LAB_STATIC_DIR}/index.html"
+echo "Branding ${INDEX_HTML}"
 
 # First, remove any old branding styles to prevent duplication
 sed -i '/<!-- NVIDIA Branding Start -->/,/<!-- NVIDIA Branding End -->/d' "$INDEX_HTML" 2>/dev/null || true
@@ -109,5 +118,6 @@ sed -i 's|</head>|<!-- NVIDIA Branding Start -->\
 </style>\
 <!-- NVIDIA Branding End -->\
 </head>|' "$INDEX_HTML"
+done
 
 echo "NVIDIA branding applied successfully!"
